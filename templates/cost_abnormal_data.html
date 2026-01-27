@@ -1,0 +1,1507 @@
+<!-- templates/cost_abnormal_data.html -->
+{% extends "base.html" %}
+
+{% block title %}异常数据详情 - AI媒介自动化审计分析系统{% endblock %}
+{% block page_title %}异常数据详情{% endblock %}
+{% block page_subtitle %}查看成本分析中的异常数据及其原因（这些数据已参与分析）{% endblock %}
+{% block breadcrumb %}
+    <li class="breadcrumb-item"><a href="{{ url_for('dashboard', analysis_id=analysis_id) }}" class="text-decoration-none text-primary fw-medium"><i class="fas fa-tachometer-alt me-1"></i>仪表盘</a></li>
+    <li class="breadcrumb-item"><a href="{{ url_for('cost_report', analysis_id=analysis_id) }}" class="text-decoration-none text-primary fw-medium"><i class="fas fa-coins me-1"></i>成本分析</a></li>
+    <li class="breadcrumb-item active" style="color: var(--text-light);"><i class="fas fa-exclamation-circle me-1"></i>异常数据详情</li>
+{% endblock %}
+
+{% block page_actions %}
+<div class="d-flex gap-2">
+    <a href="{{ url_for('cost_report', analysis_id=analysis_id) }}" class="btn btn-outline-primary">
+        <i class="fas fa-arrow-left me-1"></i> 返回成本分析
+    </a>
+    {% if abnormal_data_detail|length > 0 %}
+    <button class="btn btn-outline-warning" onclick="exportAbnormalData()">
+        <i class="fas fa-download me-1"></i> 导出Excel
+    </button>
+    {% endif %}
+    <a href="{{ url_for('cost_invalid_data_report', analysis_id=analysis_id) }}" class="btn btn-outline-danger">
+        <i class="fas fa-exclamation-triangle me-1"></i> 查看无效数据
+    </a>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/select/1.7.0/css/select.dataTables.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.dataTables.min.css">
+<style>
+    .data-quality-card {
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+
+    .data-quality-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 15px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid var(--card-border);
+    }
+
+    .data-quality-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 15px;
+    }
+
+    .icon-valid {
+        background: rgba(16, 185, 129, 0.1);
+        border: 1px solid rgba(16, 185, 129, 0.2);
+        color: #10b981;
+    }
+
+    .icon-abnormal {
+        background: rgba(245, 158, 11, 0.1);
+        border: 1px solid rgba(245, 158, 11, 0.2);
+        color: #f59e0b;
+    }
+
+    .icon-analysis {
+        background: rgba(59, 130, 246, 0.1);
+        border: 1px solid rgba(59, 130, 246, 0.2);
+        color: #3b82f6;
+    }
+
+    .reason-badge {
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+
+    .badge-price-abnormal {
+        background: rgba(245, 158, 11, 0.2);
+        color: #f59e0b;
+        border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .badge-data-abnormal {
+        background: rgba(139, 92, 246, 0.2);
+        color: #8b5cf6;
+        border: 1px solid rgba(139, 92, 246, 0.3);
+    }
+
+    .badge-rebate-abnormal {
+        background: rgba(239, 68, 68, 0.2);
+        color: #ef4444;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .badge-screening-abnormal {
+        background: rgba(14, 165, 233, 0.2);
+        color: #0ea5e9;
+        border: 1px solid rgba(14, 165, 233, 0.3);
+    }
+
+    .badge-other-abnormal {
+        background: rgba(156, 163, 175, 0.2);
+        color: #9ca3af;
+        border: 1px solid rgba(156, 163, 175, 0.3);
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--text-gray);
+    }
+
+    .empty-state-icon {
+        width: 80px;
+        height: 80px;
+        background: rgba(16, 185, 129, 0.1);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 20px;
+        border: 2px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .empty-state-icon i {
+        color: #10b981;
+        font-size: 2rem;
+    }
+
+    /* 修复表格和图表白色背景问题 */
+    .card {
+        background: var(--card-bg) !important;
+        border: 2px solid var(--card-border) !important;
+        border-radius: 16px !important;
+        color: #ffffff !important;
+    }
+
+    .card-header {
+        background: rgba(245, 158, 11, 0.4) !important;
+        border-bottom: 2px solid var(--card-border) !important;
+        padding: 18px 24px !important;
+    }
+
+    .card-header h5 {
+        color: #ffffff !important;
+        font-weight: 700 !important;
+        font-size: 18px !important;
+    }
+
+    .card-body {
+        background: transparent !important;
+        padding: 24px !important;
+    }
+
+    /* 统一的筛选器样式 */
+    .excel-filter-wrapper {
+        position: relative;
+        margin-top: 8px;
+        width: 100%;
+    }
+
+    .excel-filter {
+        width: 100% !important;
+        min-width: 120px;
+        height: 32px;
+        padding: 4px 28px 4px 10px !important;
+        background: rgba(26, 34, 50, 0.9) !important;
+        border: 1px solid var(--card-border) !important;
+        border-radius: 6px !important;
+        color: white !important;
+        font-size: 0.85rem !important;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23f59e0b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+        background-repeat: no-repeat !important;
+        background-position: right 10px center !important;
+        background-size: 12px !important;
+        appearance: none !important;
+        -webkit-appearance: none !important;
+        -moz-appearance: none !important;
+        cursor: pointer !important;
+        transition: all 0.2s ease !important;
+    }
+
+    .excel-filter:hover {
+        border-color: #f59e0b !important;
+        background-color: rgba(26, 34, 50, 0.95) !important;
+    }
+
+    .excel-filter:focus {
+        outline: none !important;
+        box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.3) !important;
+        border-color: #f59e0b !important;
+    }
+
+    .excel-filter option {
+        background: rgba(26, 34, 50, 0.95) !important;
+        color: white !important;
+        padding: 8px !important;
+    }
+
+    /* 文本输入筛选器 */
+    .text-filter {
+        width: 100% !important;
+        min-width: 120px;
+        height: 32px;
+        padding: 4px 10px !important;
+        background: rgba(26, 34, 50, 0.9) !important;
+        border: 1px solid var(--card-border) !important;
+        border-radius: 6px !important;
+        color: white !important;
+        font-size: 0.85rem !important;
+        transition: all 0.2s ease !important;
+    }
+
+    .text-filter:hover {
+        border-color: #f59e0b !important;
+    }
+
+    .text-filter:focus {
+        outline: none !important;
+        box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.3) !important;
+        border-color: #f59e0b !important;
+    }
+
+    .text-filter::placeholder {
+        color: rgba(255, 255, 255, 0.5) !important;
+        font-size: 0.8rem !important;
+    }
+
+    /* 多选筛选器样式 */
+    .multi-select-trigger {
+        width: 100% !important;
+        min-width: 120px;
+        height: 32px;
+        padding: 4px 28px 4px 10px !important;
+        background: rgba(26, 34, 50, 0.9) !important;
+        border: 1px solid var(--card-border) !important;
+        border-radius: 6px !important;
+        color: white !important;
+        font-size: 0.85rem !important;
+        cursor: pointer !important;
+        transition: all 0.2s ease !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23f59e0b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+        background-repeat: no-repeat !important;
+        background-position: right 10px center !important;
+        background-size: 12px !important;
+    }
+
+    .multi-select-trigger:hover {
+        border-color: #f59e0b !important;
+        background-color: rgba(26, 34, 50, 0.95) !important;
+    }
+
+    .multi-select-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        width: 220px !important;
+        max-height: 280px !important;
+        overflow-y: auto;
+        background: rgba(26, 34, 50, 0.98) !important;
+        border: 1px solid var(--card-border) !important;
+        border-radius: 8px !important;
+        padding: 12px !important;
+        margin-top: 4px;
+        display: none;
+        z-index: 1000 !important;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4) !important;
+        backdrop-filter: blur(10px);
+    }
+
+    .multi-select-dropdown.active {
+        display: block !important;
+    }
+
+    .multi-select-header {
+        padding: 8px 0 !important;
+        margin-bottom: 10px !important;
+        border-bottom: 1px solid var(--card-border) !important;
+        font-weight: 600 !important;
+        color: #f59e0b !important;
+        font-size: 0.9rem !important;
+    }
+
+    .multi-select-search {
+        width: 100%;
+        padding: 6px 10px;
+        margin-bottom: 10px;
+        background: rgba(26, 34, 50, 0.8);
+        border: 1px solid var(--card-border);
+        border-radius: 4px;
+        color: white;
+        font-size: 0.85rem;
+    }
+
+    .multi-select-search:focus {
+        outline: none;
+        border-color: #f59e0b;
+    }
+
+    .multi-select-options {
+        max-height: 180px;
+        overflow-y: auto;
+        padding-right: 5px;
+    }
+
+    .multi-select-options::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .multi-select-options::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 3px;
+    }
+
+    .multi-select-options::-webkit-scrollbar-thumb {
+        background: rgba(245, 158, 11, 0.5);
+        border-radius: 3px;
+    }
+
+    .multi-select-item {
+        display: flex;
+        align-items: center;
+        padding: 6px 8px;
+        margin: 2px 0;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        color: rgba(255, 255, 255, 0.9);
+        transition: all 0.2s ease;
+    }
+
+    .multi-select-item:hover {
+        background: rgba(245, 158, 11, 0.2);
+    }
+
+    .multi-select-item input[type="checkbox"] {
+        margin-right: 10px;
+        width: 14px;
+        height: 14px;
+        accent-color: #f59e0b;
+        flex-shrink: 0;
+    }
+
+    .multi-select-item span {
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .multi-select-actions {
+        padding-top: 12px;
+        margin-top: 12px;
+        border-top: 1px solid var(--card-border);
+        display: flex;
+        gap: 8px;
+    }
+
+    .multi-select-btn {
+        flex: 1;
+        height: 32px;
+        padding: 0 12px;
+        background: rgba(245, 158, 11, 0.3);
+        border: 1px solid rgba(245, 158, 11, 0.4);
+        border-radius: 6px;
+        color: white;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .multi-select-btn:hover {
+        background: rgba(245, 158, 11, 0.5);
+    }
+
+    /* 修复 DataTables 样式 */
+    #abnormalDataTable_wrapper {
+        color: white !important;
+    }
+
+    #abnormalDataTable {
+        background: rgba(26, 34, 50, 0.95) !important;
+        color: white !important;
+        border-radius: 12px;
+        overflow: hidden;
+        border-collapse: collapse !important;
+    }
+
+    #abnormalDataTable thead th {
+        background: rgba(245, 158, 11, 0.5) !important;
+        border-bottom: 2px solid var(--card-border) !important;
+        color: #ffffff !important;
+        font-weight: 700 !important;
+        padding: 12px 16px !important;
+        border: none !important;
+        position: relative;
+        vertical-align: top;
+        min-width: 120px;
+    }
+
+    #abnormalDataTable tbody td {
+        background: transparent !important;
+        color: #ffffff !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+        padding: 10px 16px !important;
+        font-weight: 500 !important;
+    }
+
+    #abnormalDataTable tbody tr:hover td {
+        background: rgba(245, 158, 11, 0.15) !important;
+    }
+
+    /* 表头文字和筛选器分开 */
+    .header-content {
+        min-height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    /* DataTables 控件样式 */
+    .dataTables_length,
+    .dataTables_filter,
+    .dataTables_info,
+    .dataTables_paginate {
+        color: rgba(255, 255, 255, 0.8) !important;
+    }
+
+    .dataTables_length select,
+    .dataTables_filter input {
+        background: rgba(26, 34, 50, 0.8) !important;
+        border: 1px solid var(--card-border) !important;
+        color: white !important;
+        border-radius: 6px !important;
+        padding: 6px 12px !important;
+    }
+
+    .dataTables_filter input:focus {
+        outline: none !important;
+        box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.3) !important;
+    }
+
+    .dataTables_paginate .paginate_button {
+        background: rgba(245, 158, 11, 0.2) !important;
+        border: 1px solid rgba(245, 158, 11, 0.3) !important;
+        color: #f59e0b !important;
+        border-radius: 6px !important;
+        margin: 0 3px !important;
+    }
+
+    .dataTables_paginate .paginate_button.current {
+        background: #f59e0b !important;
+        color: white !important;
+        border: 1px solid #f59e0b !important;
+    }
+
+    .dataTables_paginate .paginate_button:hover {
+        background: rgba(245, 158, 11, 0.3) !important;
+        color: white !important;
+    }
+
+    /* 筛选指示器和清除按钮 */
+    .filter-indicator {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        width: 6px;
+        height: 6px;
+        background: #f59e0b;
+        border-radius: 50%;
+        opacity: 0;
+        transition: opacity 0.3s;
+    }
+
+    .filter-active .filter-indicator {
+        opacity: 1;
+    }
+
+    .clear-filter-btn {
+        position: absolute;
+        top: 8px;
+        right: 20px;
+        width: 16px;
+        height: 16px;
+        background: rgba(239, 68, 68, 0.3);
+        border: none;
+        border-radius: 50%;
+        color: white;
+        font-size: 0.7rem;
+        font-weight: bold;
+        cursor: pointer;
+        opacity: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+        z-index: 10;
+    }
+
+    .clear-filter-btn:hover {
+        background: rgba(239, 68, 68, 0.6);
+        transform: scale(1.1);
+    }
+
+    .filter-active .clear-filter-btn {
+        opacity: 1;
+    }
+
+    /* 修复列表组样式 */
+    .list-group {
+        background: transparent !important;
+        border: none !important;
+    }
+
+    .list-group-item {
+        background: rgba(26, 34, 50, 0.8) !important;
+        border: 1px solid var(--card-border) !important;
+        color: #ffffff !important;
+        margin-bottom: 8px !important;
+        border-radius: 10px !important;
+        padding: 14px 16px !important;
+    }
+
+    .list-group-item:hover {
+        background: rgba(245, 158, 11, 0.2) !important;
+    }
+
+    .list-group-item .badge {
+        background: rgba(245, 158, 11, 0.6) !important;
+        color: #ffffff !important;
+        font-weight: 600 !important;
+    }
+
+    /* 修复图表容器 */
+    #reasonChart {
+        background: transparent !important;
+    }
+
+    /* 控制按钮样式 */
+    .control-buttons {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 15px;
+    }
+
+    .control-btn {
+        padding: 6px 12px;
+        background: rgba(245, 158, 11, 0.2);
+        border: 1px solid rgba(245, 158, 11, 0.3);
+        border-radius: 6px;
+        color: #f59e0b;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .control-btn:hover {
+        background: rgba(245, 158, 11, 0.3);
+        color: white;
+    }
+
+    /* 列宽调整 */
+    #abnormalDataTable th:nth-child(1) { width: 60px; }  /* 序号 */
+    #abnormalDataTable th:nth-child(2) { width: 140px; } /* 达人昵称 */
+    #abnormalDataTable th:nth-child(3) { width: 160px; } /* 项目名称 */
+    #abnormalDataTable th:nth-child(4) { width: 120px; } /* 定档媒介 */
+    #abnormalDataTable th:nth-child(5) { width: 100px; } /* 成本 */
+    #abnormalDataTable th:nth-child(6) { width: 100px; } /* 报价 */
+    #abnormalDataTable th:nth-child(7) { width: 100px; } /* 下单价 */
+    #abnormalDataTable th:nth-child(8) { width: 100px; } /* 返点 */
+    #abnormalDataTable th:nth-child(9) { width: 110px; } /* 返点比例 */
+    #abnormalDataTable th:nth-child(10) { width: 120px; } /* 异常类型 */
+    #abnormalDataTable th:nth-child(11) { width: 180px; } /* 异常原因 */
+    #abnormalDataTable th:nth-child(12) { width: 90px; } /* 参与分析 */
+    #abnormalDataTable th:nth-child(13) { width: 80px; } /* 操作 */
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- 数据概览 -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="data-quality-card">
+            <div class="d-flex align-items-center mb-3">
+                <div class="data-quality-icon icon-analysis">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <div>
+                    <div class="text-sm text-muted">参与分析数据</div>
+                    <div class="h4 mb-0">{{ abnormal_data_stats.get('参与分析数据条数', 0) }}</div>
+                </div>
+            </div>
+            <div class="text-sm text-muted">{{ abnormal_data_stats.get('参与分析数据比例(%)', '100%') }} 参与分析</div>
+        </div>
+    </div>
+
+    <div class="col-md-3 mb-3">
+        <div class="data-quality-card">
+            <div class="d-flex align-items-center mb-3">
+                <div class="data-quality-icon icon-abnormal">
+                    <i class="fas fa-exclamation-circle"></i>
+                </div>
+                <div>
+                    <div class="text-sm text-muted">异常数据</div>
+                    <div class="h4 mb-0 text-warning">{{ abnormal_data_stats.get('异常数据条数', 0) }}</div>
+                </div>
+            </div>
+            <div class="text-sm text-muted">{{ abnormal_data_stats.get('异常数据比例(%)', '0%') }} 的数据异常但参与分析</div>
+        </div>
+    </div>
+
+    <div class="col-md-3 mb-3">
+        <div class="data-quality-card">
+            <div class="d-flex align-items-center mb-3">
+                <div class="data-quality-icon" style="background: rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.2); color: #3b82f6;">
+                    <i class="fas fa-database"></i>
+                </div>
+                <div>
+                    <div class="text-sm text-muted">异常成本</div>
+                    <div class="h4 mb-0">{{ abnormal_data_stats.get('异常数据总成本(元)', 0)|format_number(2) }}元</div>
+                </div>
+            </div>
+            <div class="text-sm text-muted">异常数据的成本总额</div>
+        </div>
+    </div>
+
+    <div class="col-md-3 mb-3">
+        <div class="data-quality-card">
+            <div class="d-flex align-items-center mb-3:
+                <div class="data-quality-icon icon-valid">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div>
+                    <div class="text-sm text-muted">分析状态</div>
+                    <div class="h4 mb-0 text-success">已参与</div>
+                </div>
+            </div>
+            <div class="text-sm text-muted">这些数据已包含在分析结果中</div>
+        </div>
+    </div>
+</div>
+
+<!-- 控制按钮 -->
+<div class="control-buttons">
+    <button class="control-btn" onclick="clearAllFilters()">
+        <i class="fas fa-times"></i> 清除所有筛选
+    </button>
+    <button class="control-btn" onclick="exportFilteredData()">
+        <i class="fas fa-download"></i> 导出筛选结果
+    </button>
+    <button class="control-btn" onclick="toggleAllFilters()">
+        <i class="fas fa-eye-slash"></i> 隐藏筛选器
+    </button>
+</div>
+
+<!-- 异常数据表格 -->
+<div class="card">
+    <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="mb-0"><i class="fas fa-table me-2"></i>异常数据明细（已参与分析）</h5>
+                <div class="text-muted" id="filterInfo">共 {{ abnormal_data_detail|length }} 条异常数据记录（已包含在分析中）</div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <div class="text-muted" id="filteredCount"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-body">
+        {% if abnormal_data_detail %}
+        <div class="table-responsive">
+            <table class="table table-hover" id="abnormalDataTable">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>
+                            <div class="header-content">
+                                <span>达人昵称</span>
+                            </div>
+                            <div class="filter-indicator"></div>
+                            <button class="clear-filter-btn" onclick="clearColumnFilter(1)">×</button>
+                        </th>
+                        <th>
+                            <div class="header-content">
+                                <span>项目名称</span>
+                            </div>
+                            <div class="filter-indicator"></div>
+                            <button class="clear-filter-btn" onclick="clearColumnFilter(2)">×</button>
+                        </th>
+                        <th>
+                            <div class="header-content">
+                                <span>定档媒介</span>
+                            </div>
+                            <div class="filter-indicator"></div>
+                            <button class="clear-filter-btn" onclick="clearColumnFilter(3)">×</button>
+                        </th>
+                        <th>
+                            <div class="header-content">
+                                <span>成本(元)</span>
+                            </div>
+                            <div class="filter-indicator"></div>
+                            <button class="clear-filter-btn" onclick="clearColumnFilter(4)">×</button>
+                        </th>
+                        <th>
+                            <div class="header-content">
+                                <span>报价(元)</span>
+                            </div>
+                            <div class="filter-indicator"></div>
+                            <button class="clear-filter-btn" onclick="clearColumnFilter(5)">×</button>
+                        </th>
+                        <th>
+                            <div class="header-content">
+                                <span>下单价(元)</span>
+                            </div>
+                            <div class="filter-indicator"></div>
+                            <button class="clear-filter-btn" onclick="clearColumnFilter(6)">×</button>
+                        </th>
+                        <th>
+                            <div class="header-content">
+                                <span>返点(元)</span>
+                            </div>
+                            <div class="filter-indicator"></div>
+                            <button class="clear-filter-btn" onclick="clearColumnFilter(7)">×</button>
+                        </th>
+                        <th>
+                            <div class="header-content">
+                                <span>返点比例(%)</span>
+                            </div>
+                            <div class="filter-indicator"></div>
+                            <button class="clear-filter-btn" onclick="clearColumnFilter(8)">×</button>
+                        </th>
+                        <th>
+                            <div class="header-content">
+                                <span>异常类型</span>
+                            </div>
+                            <div class="filter-indicator"></div>
+                            <button class="clear-filter-btn" onclick="clearColumnFilter(9)">×</button>
+                        </th>
+                        <th>
+                            <div class="header-content">
+                                <span>异常原因</span>
+                            </div>
+                            <div class="filter-indicator"></div>
+                            <button class="clear-filter-btn" onclick="clearColumnFilter(10)">×</button>
+                        </th>
+                        <th>参与分析</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in abnormal_data_detail %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>{{ item.get('达人昵称', '未知') }}</td>
+                        <td>{{ item.get('项目名称', '未知') }}</td>
+                        <td>{{ item.get('定档媒介', '未知') }}</td>
+                        <td class="{% if item.get('成本', 0) == 0 %}text-danger fw-bold{% else %}text-warning{% endif %}">
+                            {{ item.get('成本', 0)|format_number(2) }}
+                        </td>
+                        <td>{{ item.get('报价', 0)|format_number(2) }}</td>
+                        <td>{{ item.get('下单价', 0)|format_number(2) }}</td>
+                        <td>{{ item.get('返点', 0)|format_number(2) }}</td>
+                        <td>
+                            {% set rebate_rate = item.get('返点比例', 0) %}
+                            <span class="{% if rebate_rate > 100 or rebate_rate < 0 %}text-danger{% else %}text-warning{% endif %}">
+                                {{ rebate_rate|format_number(2) }}%
+                            </span>
+                        </td>
+                        <td>
+                            {% set abnormal_type = item.get('异常类型', '未知') %}
+                            {% if abnormal_type == '报价异常' %}
+                                <span class="reason-badge badge-price-abnormal">{{ abnormal_type }}</span>
+                            {% elif abnormal_type == '数据异常' %}
+                                <span class="reason-badge badge-data-abnormal">{{ abnormal_type }}</span>
+                            {% elif abnormal_type == '返点异常' %}
+                                <span class="reason-badge badge-rebate-abnormal">{{ abnormal_type }}</span>
+                            {% elif abnormal_type == '筛除异常' %}
+                                <span class="reason-badge badge-screening-abnormal">{{ abnormal_type }}</span>
+                            {% else %}
+                                <span class="reason-badge badge-other-abnormal">{{ abnormal_type }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ item.get('数据异常原因', '未知原因') }}</td>
+                        <td>
+                            {% if item.get('是否参与分析', True) %}
+                            <span class="badge bg-success">是</span>
+                            {% else %}
+                            <span class="badge bg-secondary">否</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-info" onclick="viewDataDetails({{ loop.index0 }})">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <h5 style="color: var(--text-light); margin: 15px 0 10px;">无异常数据</h5>
+            <p style="color: var(--text-gray);">所有数据均正常，无异常数据需要处理</p>
+            <a href="{{ url_for('cost_report', analysis_id=analysis_id) }}" class="btn btn-success mt-3">
+                <i class="fas fa-arrow-left me-1"></i> 返回成本分析
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 异常原因分布图表（如果有数据） -->
+{% if abnormal_data_stats.get('异常数据原因分布') %}
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>异常数据原因分布</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <div style="height: 300px;">
+                    <canvas id="reasonChart"></canvas>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="list-group">
+                    {% for reason, count in abnormal_data_stats.get('异常数据原因分布', {}).items() %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center">
+                            <div class="me-2" style="width: 12px; height: 12px; background-color:
+                                {% if '报价<' in reason %}#f59e0b
+                                {% elif '无法判断' in reason %}#8b5cf6
+                                {% elif '返点比例' in reason %}#ef4444
+                                {% elif '筛除' in reason %}#0ea5e9
+                                {% else %}#9ca3af{% endif %}; border-radius: 2px;"></div>
+                            <span>{{ reason }}</span>
+                        </div>
+                        <div>
+                            <span class="badge bg-warning rounded-pill">{{ count }}</span>
+                            <span class="text-muted ms-2">
+                                {% if abnormal_data_stats.get('异常数据条数', 0) > 0 %}
+                                {{ (count / abnormal_data_stats.get('异常数据条数', 1) * 100)|round(1) }}%
+                                {% else %}0%{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/chart.umd.min.js') }}"></script>
+<!-- 引入 DataTables 和相关插件 -->
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/select/1.7.0/js/dataTables.select.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
+
+<script>
+let reasonChart = null;
+let dataTable = null;
+let filterSelects = {};
+let multiSelectData = {};
+
+// 初始化 DataTables 并添加Excel式筛选
+function initDataTable() {
+    const table = document.getElementById('abnormalDataTable');
+    if (!table) return;
+
+    dataTable = $('#abnormalDataTable').DataTable({
+        language: {
+            url: 'https://cdn.datatables.net/plug-ins/1.13.6/i18n/zh-CN.json'
+        },
+        pageLength: 25,
+        lengthMenu: [10, 25, 50, 100],
+        order: [[0, 'asc']],
+        dom: '<"row"<"col-md-6"l><"col-md-6"f>>rt<"row"<"col-md-6"i><"col-md-6"p>>',
+        columnDefs: [
+            { width: '60px', targets: 0 },   // 序号
+            { width: '140px', targets: 1 },  // 达人昵称
+            { width: '160px', targets: 2 },  // 项目名称
+            { width: '120px', targets: 3 },  // 定档媒介
+            { width: '100px', targets: 4 },  // 成本
+            { width: '100px', targets: 5 },  // 报价
+            { width: '100px', targets: 6 },  // 下单价
+            { width: '100px', targets: 7 },  // 返点
+            { width: '110px', targets: 8 },  // 返点比例
+            { width: '120px', targets: 9 },  // 异常类型
+            { width: '180px', targets: 10 }, // 异常原因
+            { width: '90px', targets: 11 },  // 参与分析
+            { width: '80px', targets: 12 }   // 操作
+        ],
+        initComplete: function() {
+            // 初始化筛选器
+            initFilters();
+
+            // 更新筛选信息
+            updateFilterInfo();
+
+            // 监听表格绘制事件
+            this.api().on('draw', function() {
+                updateFilterInfo();
+            });
+        }
+    });
+}
+
+// 初始化筛选器
+function initFilters() {
+    if (!dataTable) return;
+
+    // 为每个列添加Excel式筛选器
+    dataTable.columns([1, 2, 3, 9, 10]).every(function(index) {
+        const column = this;
+        const columnIndex = column.index();
+        const header = $(column.header());
+
+        // 获取列的唯一值
+        const uniqueValues = column.data().unique().sort().toArray();
+        const uniqueOptions = uniqueValues.filter(val => val && val.toString().trim() !== '');
+
+        // 创建筛选器容器
+        const filterContainer = $('<div class="excel-filter-wrapper"></div>');
+
+        if (uniqueOptions.length > 0 && uniqueOptions.length <= 30) {
+            // 创建多选筛选器
+            const filterId = 'filter-' + columnIndex;
+
+            // 创建触发按钮
+            const triggerBtn = $(`
+                <div class="multi-select-trigger" id="trigger-${filterId}">
+                    <span>全部</span>
+                </div>
+            `).appendTo(filterContainer);
+
+            // 创建下拉菜单
+            const dropdown = $(`
+                <div class="multi-select-dropdown" id="${filterId}">
+                    <div class="multi-select-header">${header.find('.header-content span').text()}</div>
+                    <input type="text" class="multi-select-search" placeholder="搜索..." onkeyup="filterMultiSelect('${filterId}')">
+                    <div class="multi-select-options" id="options-${filterId}"></div>
+                    <div class="multi-select-actions">
+                        <button class="multi-select-btn" onclick="applyMultiSelectFilter(${columnIndex})">确定</button>
+                        <button class="multi-select-btn" onclick="clearMultiSelectFilter(${columnIndex})">清除</button>
+                    </div>
+                </div>
+            `).appendTo(filterContainer);
+
+            // 添加选项
+            const optionsDiv = dropdown.find('#options-' + filterId);
+            optionsDiv.append(`
+                <label class="multi-select-item">
+                    <input type="checkbox" value="" checked>
+                    <span>全选</span>
+                </label>
+            `);
+
+            uniqueOptions.forEach(value => {
+                const displayValue = value.toString().length > 30 ? value.toString().substring(0, 30) + '...' : value.toString();
+                optionsDiv.append(`
+                    <label class="multi-select-item">
+                        <input type="checkbox" value="${value}" checked>
+                        <span>${displayValue}</span>
+                    </label>
+                `);
+            });
+
+            // 存储多选数据
+            multiSelectData[columnIndex] = {
+                values: uniqueOptions,
+                selected: [...uniqueOptions]
+            };
+
+            // 点击触发按钮显示下拉
+            triggerBtn.on('click', function(e) {
+                e.stopPropagation();
+                const dropdown = document.getElementById(filterId);
+                const allDropdowns = document.querySelectorAll('.multi-select-dropdown');
+
+                allDropdowns.forEach(d => {
+                    if (d !== dropdown) d.classList.remove('active');
+                });
+
+                dropdown.classList.toggle('active');
+
+                // 点击其他地方关闭下拉
+                if (!window.multiSelectClickListener) {
+                    window.multiSelectClickListener = function(e) {
+                        if (!e.target.closest('.multi-select-dropdown') && !e.target.closest('.multi-select-trigger')) {
+                            document.querySelectorAll('.multi-select-dropdown').forEach(d => {
+                                d.classList.remove('active');
+                            });
+                        }
+                    };
+                    document.addEventListener('click', window.multiSelectClickListener);
+                }
+            });
+
+        } else {
+            // 值太多时使用文本搜索
+            const input = $(`
+                <input type="text" class="text-filter" placeholder="输入筛选条件" />
+            `).appendTo(filterContainer);
+
+            input.on('keyup change', function() {
+                const value = $(this).val().trim();
+                const clearBtn = header.find('.clear-filter-btn');
+
+                if (column.search() !== value) {
+                    column.search(value).draw();
+                    if (value) {
+                        header.addClass('filter-active');
+                        clearBtn.show();
+                    } else {
+                        header.removeClass('filter-active');
+                        clearBtn.hide();
+                    }
+                }
+            });
+        }
+
+        // 将筛选器添加到表头
+        header.append(filterContainer);
+    });
+
+    // 为数字列添加下拉筛选器
+    dataTable.columns([4, 5, 6, 7, 8]).every(function(index) {
+        const column = this;
+        const columnIndex = column.index();
+        const header = $(column.header());
+
+        // 创建筛选器容器
+        const filterContainer = $('<div class="excel-filter-wrapper"></div>');
+
+        // 创建下拉选择器
+        const select = $(`
+            <select class="excel-filter">
+                <option value="">全部</option>
+                <option value="0-100">0-100</option>
+                <option value="100-500">100-500</option>
+                <option value="500-1000">500-1000</option>
+                <option value="1000-5000">1000-5000</option>
+                <option value=">5000">>5000</option>
+                <option value="0">=0</option>
+                <option value="custom">自定义范围...</option>
+            </select>
+        `).appendTo(filterContainer);
+
+        select.on('change', function() {
+            const value = $(this).val();
+            const clearBtn = header.find('.clear-filter-btn');
+            const headerElement = header[0];
+
+            if (value === 'custom') {
+                const min = prompt('请输入最小值:');
+                const max = prompt('请输入最大值:');
+                if (min !== null && max !== null) {
+                    const minNum = parseFloat(min) || 0;
+                    const maxNum = parseFloat(max) || Infinity;
+
+                    column.search('', true, false).draw();
+                    $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
+                        const cellValue = parseFloat(data[columnIndex]) || 0;
+                        return cellValue >= minNum && cellValue <= maxNum;
+                    });
+                    dataTable.draw();
+
+                    headerElement.classList.add('filter-active');
+                    clearBtn.show();
+                    $(this).val(`${minNum}-${maxNum}`);
+                } else {
+                    $(this).val('');
+                }
+            } else if (!value) {
+                column.search('').draw();
+                headerElement.classList.remove('filter-active');
+                clearBtn.hide();
+                $.fn.dataTable.ext.search.pop();
+            } else {
+                if (value.includes('-')) {
+                    const [min, max] = value.split('-').map(v => parseFloat(v));
+                    column.search('', true, false).draw();
+                    $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
+                        const cellValue = parseFloat(data[columnIndex]) || 0;
+                        return cellValue >= min && cellValue <= max;
+                    });
+                    dataTable.draw();
+                } else if (value.startsWith('>')) {
+                    const num = parseFloat(value.substring(1));
+                    column.search('', true, false).draw();
+                    $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
+                        const cellValue = parseFloat(data[columnIndex]) || 0;
+                        return cellValue > num;
+                    });
+                    dataTable.draw();
+                } else if (value.startsWith('=')) {
+                    const num = parseFloat(value.substring(1));
+                    column.search('', true, false).draw();
+                    $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
+                        const cellValue = parseFloat(data[columnIndex]) || 0;
+                        return cellValue === num;
+                    });
+                    dataTable.draw();
+                } else {
+                    column.search(value, true, false).draw();
+                }
+                headerElement.classList.add('filter-active');
+                clearBtn.show();
+            }
+        });
+
+        // 将筛选器添加到表头
+        header.append(filterContainer);
+    });
+}
+
+// 过滤多选选项
+function filterMultiSelect(filterId) {
+    const searchInput = document.querySelector(`#${filterId} .multi-select-search`);
+    const searchTerm = searchInput.value.toLowerCase();
+    const options = document.querySelectorAll(`#options-${filterId} .multi-select-item`);
+
+    options.forEach(option => {
+        const text = option.querySelector('span').textContent.toLowerCase();
+        if (text.includes(searchTerm)) {
+            option.style.display = 'flex';
+        } else {
+            option.style.display = 'none';
+        }
+    });
+}
+
+// 应用多选筛选
+function applyMultiSelectFilter(columnIndex) {
+    const filterId = 'filter-' + columnIndex;
+    const dropdown = document.getElementById(filterId);
+    const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]');
+    const selectedValues = [];
+    let allSelected = true;
+
+    checkboxes.forEach((checkbox, index) => {
+        if (index > 0 && checkbox.checked) { // 跳过全选框
+            selectedValues.push(checkbox.value);
+        }
+        if (index > 0 && !checkbox.checked) {
+            allSelected = false;
+        }
+    });
+
+    const column = dataTable.column(columnIndex);
+    const header = $(column.header());
+    const clearBtn = header.find('.clear-filter-btn');
+
+    if (selectedValues.length === 0 || allSelected) {
+        column.search('').draw();
+        header.removeClass('filter-active');
+        clearBtn.hide();
+        // 更新全选框状态
+        checkboxes[0].checked = true;
+    } else {
+        // 创建正则表达式进行筛选
+        const searchRegex = selectedValues.map(val => '^' + $.fn.dataTable.util.escapeRegex(val) + '$').join('|');
+        column.search(searchRegex, true, false).draw();
+        header.addClass('filter-active');
+        clearBtn.show();
+        // 更新全选框状态
+        checkboxes[0].checked = false;
+    }
+
+    dropdown.classList.remove('active');
+
+    // 更新触发按钮文本
+    const triggerBtn = document.getElementById(`trigger-${filterId}`);
+    const selectedCount = selectedValues.length;
+    const totalCount = checkboxes.length - 1;
+
+    if (selectedCount === 0 || selectedCount === totalCount) {
+        triggerBtn.querySelector('span').textContent = '全部';
+    } else {
+        triggerBtn.querySelector('span').textContent = `已选 ${selectedCount} 项`;
+    }
+}
+
+// 清除多选筛选
+function clearMultiSelectFilter(columnIndex) {
+    const filterId = 'filter-' + columnIndex;
+    const dropdown = document.getElementById(filterId);
+    const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]');
+
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = true;
+    });
+
+    const column = dataTable.column(columnIndex);
+    const header = $(column.header());
+    const clearBtn = header.find('.clear-filter-btn');
+
+    column.search('').draw();
+    header.removeClass('filter-active');
+    clearBtn.hide();
+
+    dropdown.classList.remove('active');
+
+    // 更新触发按钮文本
+    const triggerBtn = document.getElementById(`trigger-${filterId}`);
+    triggerBtn.querySelector('span').textContent = '全部';
+}
+
+// 清除单列筛选
+function clearColumnFilter(columnIndex) {
+    if (dataTable) {
+        const column = dataTable.column(columnIndex);
+        const header = $(column.header());
+
+        // 清除列搜索
+        column.search('').draw();
+
+        // 移除自定义搜索函数
+        $.fn.dataTable.ext.search.pop();
+
+        // 移除筛选激活状态
+        header.removeClass('filter-active');
+        header.find('.clear-filter-btn').hide();
+
+        // 重置筛选器值
+        const filterWrapper = header.find('.excel-filter-wrapper');
+
+        // 重置下拉选择器
+        const select = filterWrapper.find('.excel-filter');
+        if (select.length && select.is('select')) {
+            select.val('');
+        }
+
+        // 重置文本输入框
+        const textInput = filterWrapper.find('.text-filter');
+        if (textInput.length) {
+            textInput.val('');
+        }
+
+        // 重置多选筛选器
+        const filterId = 'filter-' + columnIndex;
+        const dropdown = document.getElementById(filterId);
+        if (dropdown) {
+            const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = true;
+            });
+
+            const triggerBtn = document.getElementById(`trigger-${filterId}`);
+            if (triggerBtn) {
+                triggerBtn.querySelector('span').textContent = '全部';
+            }
+        }
+    }
+}
+
+// 清除所有筛选
+function clearAllFilters() {
+    if (dataTable) {
+        // 清除所有列搜索
+        dataTable.columns().search('').draw();
+
+        // 移除所有自定义搜索函数
+        while($.fn.dataTable.ext.search.length > 0) {
+            $.fn.dataTable.ext.search.pop();
+        }
+
+        // 重置所有筛选器
+        $('.excel-filter-wrapper').each(function() {
+            const select = $(this).find('.excel-filter');
+            if (select.length && select.is('select')) {
+                select.val('');
+            }
+
+            const textInput = $(this).find('.text-filter');
+            if (textInput.length) {
+                textInput.val('');
+            }
+        });
+
+        // 重置所有多选筛选器
+        Object.keys(multiSelectData).forEach(colIndex => {
+            const filterId = 'filter-' + colIndex;
+            const dropdown = document.getElementById(filterId);
+            if (dropdown) {
+                const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]');
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = true;
+                });
+
+                const triggerBtn = document.getElementById(`trigger-${filterId}`);
+                if (triggerBtn) {
+                    triggerBtn.querySelector('span').textContent = '全部';
+                }
+            }
+        });
+
+        // 移除所有筛选激活状态
+        $('th').removeClass('filter-active');
+        $('.clear-filter-btn').hide();
+
+        // 隐藏所有下拉菜单
+        $('.multi-select-dropdown').removeClass('active');
+    }
+}
+
+// 显示/隐藏所有筛选器
+function toggleAllFilters() {
+    const filterWrappers = $('.excel-filter-wrapper');
+    const isVisible = filterWrappers.first().is(':visible');
+    const toggleBtn = event.target.closest('.control-btn');
+
+    if (isVisible) {
+        filterWrappers.hide();
+        toggleBtn.innerHTML = '<i class="fas fa-eye"></i> 显示筛选器';
+    } else {
+        filterWrappers.show();
+        toggleBtn.innerHTML = '<i class="fas fa-eye-slash"></i> 隐藏筛选器';
+    }
+}
+
+// 更新筛选信息
+function updateFilterInfo() {
+    if (!dataTable) return;
+
+    const total = dataTable.rows().count();
+    const filtered = dataTable.rows({ search: 'applied' }).count();
+    const filterInfo = document.getElementById('filterInfo');
+    const filteredCount = document.getElementById('filteredCount');
+
+    if (filtered < total) {
+        filterInfo.textContent = `共 ${total} 条记录，筛选后显示 ${filtered} 条`;
+        if (filteredCount) {
+            filteredCount.innerHTML = `<span class="badge bg-warning">${filtered} / ${total}</span>`;
+        }
+    } else {
+        filterInfo.textContent = `共 ${total} 条异常数据记录（已包含在分析中）`;
+        if (filteredCount) {
+            filteredCount.innerHTML = '';
+        }
+    }
+}
+
+// 导出筛选结果
+function exportFilteredData() {
+    if (!dataTable) return;
+
+    const filtered = dataTable.rows({ search: 'applied' }).count();
+    const total = dataTable.rows().count();
+
+    if (filtered === 0) {
+        alert('没有数据可导出');
+        return;
+    }
+
+    if (filtered === total) {
+        exportAbnormalData();
+    } else {
+        if (confirm(`当前筛选出 ${filtered} 条记录（共 ${total} 条），是否导出筛选结果？`)) {
+            // 这里可以添加导出筛选结果的逻辑
+            alert('导出筛选结果功能正在开发中...');
+        }
+    }
+}
+
+// 初始化图表
+function initReasonChart() {
+    const ctx = document.getElementById('reasonChart');
+    if (!ctx) return;
+
+    const reasonData = {{ abnormal_data_stats.get('异常数据原因分布', {})|tojson|safe }};
+    if (Object.keys(reasonData).length === 0) return;
+
+    const labels = Object.keys(reasonData);
+    const data = Object.values(reasonData);
+    const colors = ['#f59e0b', '#8b5cf6', '#ef4444', '#0ea5e9', '#9ca3af'];
+
+    if (reasonChart) {
+        reasonChart.destroy();
+    }
+
+    reasonChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: colors.slice(0, labels.length),
+                borderWidth: 1,
+                hoverOffset: 15
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: {
+                        color: 'rgba(255, 255, 255, 0.7)',
+                        padding: 15,
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.label || '';
+                            const value = context.raw || 0;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                            return `${label}: ${value} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// 查看数据详情
+function viewDataDetails(index) {
+    const data = {{ abnormal_data_detail|tojson|safe }};
+    if (data && data[index]) {
+        const item = data[index];
+        let details = `异常数据详细信息：\n\n`;
+        details += `达人昵称：${item.达人昵称 || '未知'}\n`;
+        details += `项目名称：${item.项目名称 || '未知'}\n`;
+        details += `定档媒介：${item.定档媒介 || '未知'}\n`;
+        details += `成本：${item.成本 || 0}元\n`;
+        details += `报价：${item.报价 || 0}元\n`;
+        details += `下单价：${item.下单价 || 0}元\n`;
+        details += `返点：${item.返点 || 0}元\n`;
+        details += `返点比例：${item.返点比例 || 0}%\n`;
+        details += `不含手续费的下单价：${item['不含手续费的下单价'] || '未知'}\n`;
+        details += `异常类型：${item.异常类型 || '未知'}\n`;
+        details += `异常原因：${item.数据异常原因 || '未知'}\n`;
+        details += `是否参与分析：${item.是否参与分析 ? '是（已包含在分析结果中）' : '否'}\n`;
+
+        if (item.异常类型 === '报价异常') {
+            details += `\n⚠️ 注意：此数据报价异常（报价 < 不含手续费的下单价），建议核查\n`;
+        } else if (item.异常类型 === '返点异常') {
+            details += `\n⚠️ 注意：此数据返点比例异常，建议核查\n`;
+        }
+
+        alert(details);
+    }
+}
+
+// 导出异常数据
+function exportAbnormalData() {
+    const analysisId = "{{ analysis_id }}";
+    if (!analysisId) {
+        alert('无法获取分析ID');
+        return;
+    }
+
+    // 显示加载中
+    const exportBtn = event.target.closest('button') || event.target;
+    const originalHtml = exportBtn.innerHTML;
+    exportBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> 导出中...';
+    exportBtn.disabled = true;
+
+    // 调用导出接口
+    window.location.href = `/export/abnormal_data/${analysisId}`;
+
+    // 3秒后恢复按钮状态
+    setTimeout(() => {
+        exportBtn.innerHTML = originalHtml;
+        exportBtn.disabled = false;
+    }, 3000);
+}
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', function() {
+    initReasonChart();
+    initDataTable();
+});
+</script>
+{% endblock %}

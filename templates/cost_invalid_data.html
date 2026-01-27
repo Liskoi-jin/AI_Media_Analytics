@@ -1,0 +1,631 @@
+<!-- templates/cost_invalid_data.html -->
+{% extends "base.html" %}
+
+{% block title %}无效数据详情 - AI媒介自动化审计分析系统{% endblock %}
+{% block page_title %}无效数据详情{% endblock %}
+{% block page_subtitle %}查看成本分析中的无效数据及其原因{% endblock %}
+{% block breadcrumb %}
+    <li class="breadcrumb-item"><a href="{{ url_for('dashboard', analysis_id=analysis_id) }}" class="text-decoration-none text-primary fw-medium"><i class="fas fa-tachometer-alt me-1"></i>仪表盘</a></li>
+    <li class="breadcrumb-item"><a href="{{ url_for('cost_report', analysis_id=analysis_id) }}" class="text-decoration-none text-primary fw-medium"><i class="fas fa-coins me-1"></i>成本分析</a></li>
+    <li class="breadcrumb-item active" style="color: var(--text-light);"><i class="fas fa-exclamation-triangle me-1"></i>无效数据详情</li>
+{% endblock %}
+
+{% block page_actions %}
+<div class="d-flex gap-2">
+    <a href="{{ url_for('cost_report', analysis_id=analysis_id) }}" class="btn btn-outline-primary">
+        <i class="fas fa-arrow-left me-1"></i> 返回成本分析
+    </a>
+    {% if invalid_data_detail|length > 0 %}
+    <button class="btn btn-outline-success" onclick="exportInvalidData()">
+        <i class="fas fa-download me-1"></i> 导出Excel
+    </button>
+    {% endif %}
+    <button class="btn btn-outline-secondary" onclick="window.print()">
+        <i class="fas fa-print me-1"></i> 打印
+    </button>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .data-quality-card {
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+
+    .data-quality-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 15px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid var(--card-border);
+    }
+
+    .data-quality-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 15px;
+    }
+
+    .icon-valid {
+        background: rgba(16, 185, 129, 0.1);
+        border: 1px solid rgba(16, 185, 129, 0.2);
+        color: #10b981;
+    }
+
+    .icon-invalid {
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid rgba(239, 68, 68, 0.2);
+        color: #ef4444;
+    }
+
+    .reason-badge {
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+
+    .badge-cost-zero {
+        background: rgba(239, 68, 68, 0.2);
+        color: #ef4444;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .badge-price-low {
+        background: rgba(220, 38, 38, 0.2);
+        color: #dc2626;
+        border: 1px solid rgba(220, 38, 38, 0.3);
+    }
+
+    .badge-price-mismatch {
+        background: rgba(234, 88, 12, 0.2);
+        color: #ea580c;
+        border: 1px solid rgba(234, 88, 12, 0.3);
+    }
+
+    .badge-data-incomplete {
+        background: rgba(59, 130, 246, 0.2);
+        color: #3b82f6;
+        border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+
+    .badge-data-abnormal {
+        background: rgba(139, 92, 246, 0.2);
+        color: #8b5cf6;
+        border: 1px solid rgba(139, 92, 246, 0.3);
+    }
+
+    .badge-screened {
+        background: rgba(245, 158, 11, 0.2);
+        color: #f59e0b;
+        border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .badge-unknown {
+        background: rgba(107, 114, 128, 0.2);
+        color: #6b7280;
+        border: 1px solid rgba(107, 114, 128, 0.3);
+    }
+
+    .badge-other {
+        background: rgba(156, 163, 175, 0.2);
+        color: #9ca3af;
+        border: 1px solid rgba(156, 163, 175, 0.3);
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--text-gray);
+    }
+
+    .empty-state-icon {
+        width: 80px;
+        height: 80px;
+        background: rgba(16, 185, 129, 0.1);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 20px;
+        border: 2px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .empty-state-icon i {
+        color: #10b981;
+        font-size: 2rem;
+    }
+
+    /* 修复表格和图表白色背景问题 */
+    .card {
+        background: var(--card-bg) !important;
+        border: 2px solid var(--card-border) !important;
+        border-radius: 16px !important;
+        color: #ffffff !important;
+    }
+
+    .card-header {
+        background: rgba(99, 102, 241, 0.4) !important;
+        border-bottom: 2px solid var(--card-border) !important;
+        padding: 18px 24px !important;
+    }
+
+    .card-header h5 {
+        color: #ffffff !important;
+        font-weight: 700 !important;
+        font-size: 18px !important;
+    }
+
+    .card-body {
+        background: transparent !important;
+        padding: 24px !important;
+    }
+
+    /* 修复表格样式 */
+    .table {
+        background: rgba(26, 34, 50, 0.95) !important;
+        color: #ffffff !important;
+        border-radius: 12px;
+        overflow: hidden;
+        margin-bottom: 0;
+    }
+
+    .table thead th {
+        background: rgba(99, 102, 241, 0.5) !important;
+        border-bottom: 2px solid var(--card-border) !important;
+        color: #ffffff !important;
+        font-weight: 700 !important;
+        padding: 16px !important;
+        border: none !important;
+    }
+
+    .table tbody td {
+        background: transparent !important;
+        color: #ffffff !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+        padding: 14px 16px !important;
+        font-weight: 500 !important;
+    }
+
+    .table tbody tr:hover td {
+        background: rgba(99, 102, 241, 0.15) !important;
+    }
+
+    /* 修复列表组样式 */
+    .list-group {
+        background: transparent !important;
+        border: none !important;
+    }
+
+    .list-group-item {
+        background: rgba(26, 34, 50, 0.8) !important;
+        border: 1px solid var(--card-border) !important;
+        color: #ffffff !important;
+        margin-bottom: 8px !important;
+        border-radius: 10px !important;
+        padding: 14px 16px !important;
+    }
+
+    .list-group-item:hover {
+        background: rgba(99, 102, 241, 0.2) !important;
+    }
+
+    .list-group-item .badge {
+        background: rgba(99, 102, 241, 0.6) !important;
+        color: #ffffff !important;
+        font-weight: 600 !important;
+    }
+
+    /* 修复图表容器 */
+    #reasonChart {
+        background: transparent !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- 数据概览 -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="data-quality-card">
+            <div class="d-flex align-items-center mb-3">
+                <div class="data-quality-icon icon-valid">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div>
+                    <div class="text-sm text-muted">有效数据</div>
+                    <div class="h4 mb-0 text-success">{{ invalid_data_stats.get('有效数据条数', 0) }}</div>
+                </div>
+            </div>
+            <div class="text-sm text-muted">{{ invalid_data_stats.get('有效数据比例(%)', '0%') }} 的数据有效</div>
+        </div>
+    </div>
+
+    <div class="col-md-3 mb-3">
+        <div class="data-quality-card">
+            <div class="d-flex align-items-center mb-3">
+                <div class="data-quality-icon icon-invalid">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div>
+                    <div class="text-sm text-muted">无效数据</div>
+                    <div class="h4 mb-0 text-danger">{{ invalid_data_stats.get('无效数据条数', 0) }}</div>
+                </div>
+            </div>
+            <div class="text-sm text-muted">{{ invalid_data_stats.get('无效数据比例(%)', '0%') }} 的数据无效</div>
+        </div>
+    </div>
+
+    <div class="col-md-3 mb-3">
+        <div class="data-quality-card">
+            <div class="d-flex align-items-center mb-3">
+                <div class="data-quality-icon" style="background: rgba(99, 102, 241, 0.1); border-color: rgba(99, 102, 241, 0.2); color: #6366f1;">
+                    <i class="fas fa-database"></i>
+                </div>
+                <div>
+                    <div class="text-sm text-muted">总数据</div>
+                    <div class="h4 mb-0">{{ invalid_data_stats.get('总数据条数', 0) }}</div>
+                </div>
+            </div>
+            <div class="text-sm text-muted">分析数据总量</div>
+        </div>
+    </div>
+
+    <div class="col-md-3 mb-3">
+        <div class="data-quality-card">
+            <div class="d-flex align-items-center mb-3">
+                <div class="data-quality-icon" style="background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.2); color: #f59e0b;">
+                    <i class="fas fa-money-bill-wave"></i>
+                </div>
+                <div>
+                    <div class="text-sm text-muted">无效成本</div>
+                    <div class="h4 mb-0 text-warning">{{ invalid_data_stats.get('无效数据总成本(元)', 0)|format_number(2) }}元</div>
+                </div>
+            </div>
+            <div class="text-sm text-muted">无效数据的成本总额</div>
+        </div>
+    </div>
+</div>
+
+<!-- 无效数据表格 -->
+<div class="card">
+    <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="mb-0"><i class="fas fa-table me-2"></i>无效数据明细</h5>
+                <div class="text-muted">共 {{ invalid_data_detail|length }} 条无效数据记录</div>
+            </div>
+            <div>
+                {% if invalid_data_stats.get('无效数据原因分布') %}
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                        <i class="fas fa-filter me-1"></i> 按原因筛选
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="javascript:void(0)" onclick="filterByReason('all')">全部原因</a></li>
+                        {% for reason in invalid_data_stats.get('无效数据原因分布', {}).keys() %}
+                        <li><a class="dropdown-item" href="javascript:void(0)" onclick="filterByReason('{{ reason }}')">{{ reason }}</a></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="card-body">
+        {% if invalid_data_detail %}
+        <div class="table-responsive">
+            <table class="table table-hover" id="invalidDataTable">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>达人昵称</th>
+                        <th>项目名称</th>
+                        <th>定档媒介</th>
+                        <th>成本(元)</th>
+                        <th>报价(元)</th>
+                        <th>下单价(元)</th>
+                        <th>返点(元)</th>
+                        <th>无效原因</th>
+                        <th>是否被筛除</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in invalid_data_detail %}
+                    <tr data-reason="{{ item.get('成本无效原因', '') }}" data-screening-reason="{{ item.get('筛除原因', '') }}">
+                        <td>{{ loop.index }}</td>
+                        <td>{{ item.get('达人昵称', '未知') }}</td>
+                        <td>{{ item.get('项目名称', '未知') }}</td>
+                        <td>{{ item.get('定档媒介', '未知') }}</td>
+                        <td class="{% if item.get('成本', 0) == 0 %}text-danger fw-bold{% endif %}">
+                            {{ item.get('成本', 0)|format_number(2) }}
+                        </td>
+                        <td>{{ item.get('报价', 0)|format_number(2) }}</td>
+                        <td>{{ item.get('下单价', 0)|format_number(2) }}</td>
+                        <td>{{ item.get('返点', 0)|format_number(2) }}</td>
+                        <!-- 在表格行中，更新原因标签的class -->
+                        <td>
+                            {% set reason = item.get('成本无效原因', '未知原因') %}
+                            {% set screening_reason = item.get('筛除原因', '') %}
+                            {% set invalid_type = item.get('无效类型', '') %}
+
+                            {# 优先显示筛除原因（如果有且不是'正常'） #}
+                            {% if screening_reason and screening_reason != '正常' and screening_reason != '' %}
+                                {% set display_reason = screening_reason %}
+                            {% else %}
+                                {% set display_reason = reason %}
+                            {% endif %}
+
+                            {# 根据无效类型设置标签颜色 #}
+                            {% if invalid_type == '成本为0或缺失' %}
+                                <span class="reason-badge badge-cost-zero">{{ display_reason }}</span>
+                            {% elif invalid_type == '报价<不含手续费的下单价' %}
+                                <span class="reason-badge badge-price-low">{{ display_reason }}</span>
+                            {% elif invalid_type == '数据异常' %}
+                                <span class="reason-badge badge-data-abnormal">{{ display_reason }}</span>
+                            {% elif '数据不全' in display_reason %}
+                                <span class="reason-badge badge-data-incomplete">{{ display_reason }}</span>
+                            {% elif '正常' in display_reason %}
+                                <span class="reason-badge badge-screened">{{ display_reason }}</span>
+                            {% elif '未知原因' in display_reason %}
+                                <span class="reason-badge badge-unknown">{{ display_reason }}</span>
+                            {% else %}
+                                <span class="reason-badge badge-other">{{ display_reason }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.get('是否被筛除', False) %}
+                            <span class="badge bg-warning">是</span>
+                            {% else %}
+                            <span class="badge bg-secondary">否</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-info" onclick="viewDataDetails({{ loop.index0 }})">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 分页 -->
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <div class="text-muted">
+                显示 {{ invalid_data_detail|length }} 条记录
+            </div>
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item disabled"><a class="page-link" href="#">上一页</a></li>
+                    <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                    <li class="page-item disabled"><a class="page-link" href="#">下一页</a></li>
+                </ul>
+            </nav>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <h5 style="color: var(--text-light); margin: 15px 0 10px;">无无效数据</h5>
+            <p style="color: var(--text-gray);">所有数据均有效，无需处理</p>
+            <a href="{{ url_for('cost_report', analysis_id=analysis_id) }}" class="btn btn-success mt-3">
+                <i class="fas fa-arrow-left me-1"></i> 返回成本分析
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 原因分布图表（如果有数据） -->
+{% if invalid_data_stats.get('无效数据原因分布') %}
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>无效数据原因分布</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <div style="height: 300px;">
+                    <canvas id="reasonChart"></canvas>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="list-group">
+                    {% for reason, count in invalid_data_stats.get('无效数据原因分布', {}).items() %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center">
+                            <div class="me-2" style="width: 12px; height: 12px; background-color:
+                                {% if '成本为0' in reason or '成本缺失' in reason %}#ef4444
+                                {% elif '报价×1.1' in reason %}#dc2626
+                                {% elif '报价<' in reason %}#ea580c
+                                {% elif '数据不全' in reason %}#3b82f6
+                                {% elif '数据异常' in reason %}#8b5cf6
+                                {% elif '正常' in reason %}#f59e0b
+                                {% elif '未知原因' in reason %}#6b7280
+                                {% else %}#9ca3af{% endif %}; border-radius: 2px;"></div>
+                            <span>{{ reason }}</span>
+                        </div>
+                        <div>
+                            <span class="badge bg-primary rounded-pill">{{ count }}</span>
+                            <span class="text-muted ms-2">
+                                {% if invalid_data_stats.get('无效数据条数', 0) > 0 %}
+                                {{ (count / invalid_data_stats.get('无效数据条数', 1) * 100)|round(1) }}%
+                                {% else %}0%{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/chart.umd.min.js') }}"></script>
+<script>
+let reasonChart = null;
+
+// 初始化图表
+function initReasonChart() {
+    const ctx = document.getElementById('reasonChart');
+    if (!ctx) return;
+
+    const reasonData = {{ invalid_data_stats.get('无效数据原因分布', {})|tojson|safe }};
+    if (Object.keys(reasonData).length === 0) return;
+
+    const labels = Object.keys(reasonData);
+    const data = Object.values(reasonData);
+    const colors = ['#ef4444', '#dc2626', '#ea580c', '#3b82f6', '#8b5cf6', '#f59e0b', '#6b7280', '#9ca3af'];
+
+    if (reasonChart) {
+        reasonChart.destroy();
+    }
+
+    reasonChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: colors.slice(0, labels.length),
+                borderWidth: 1,
+                hoverOffset: 15
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: {
+                        color: 'rgba(255, 255, 255, 0.7)',
+                        padding: 15,
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.label || '';
+                            const value = context.raw || 0;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                            return `${label}: ${value} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// 按原因筛选表格
+function filterByReason(reason) {
+    const rows = document.querySelectorAll('#invalidDataTable tbody tr');
+    let visibleCount = 0;
+
+    rows.forEach(row => {
+        const rowReason = row.getAttribute('data-reason');
+        const screeningReason = row.getAttribute('data-screening-reason');
+
+        // 检查是否匹配成本无效原因或筛除原因
+        const isVisible = reason === 'all' ||
+                         rowReason === reason ||
+                         screeningReason === reason;
+
+        row.style.display = isVisible ? '' : 'none';
+
+        if (isVisible) visibleCount++;
+    });
+
+    // 更新显示数量
+    const countElement = document.querySelector('.card-header .text-muted');
+    if (countElement) {
+        countElement.textContent = reason === 'all' ?
+            `共 {{ invalid_data_detail|length }} 条无效数据记录` :
+            `共 ${visibleCount} 条记录（筛选：${reason}）`;
+    }
+}
+
+// 查看数据详情
+function viewDataDetails(index) {
+    const data = {{ invalid_data_detail|tojson|safe }};
+    if (data && data[index]) {
+        const item = data[index];
+        let details = `详细数据信息：\n\n`;
+        details += `达人昵称：${item.达人昵称 || '未知'}\n`;
+        details += `项目名称：${item.项目名称 || '未知'}\n`;
+        details += `定档媒介：${item.定档媒介 || '未知'}\n`;
+        details += `成本：${item.成本 || 0}元\n`;
+        details += `报价：${item.报价 || 0}元\n`;
+        details += `下单价：${item.下单价 || 0}元\n`;
+        details += `返点：${item.返点 || 0}元\n`;
+        details += `成本无效原因：${item.成本无效原因 || '未知'}\n`;
+        details += `筛除原因：${item.筛除原因 || '无'}\n`;
+        details += `是否被筛除：${item.是否被筛除 ? '是' : '否'}\n`;
+
+        if (item.筛除原因 && item.筛除原因 !== '正常') {
+            details += `\n注意：此数据因【${item.筛除原因}】被标记为异常\n`;
+        }
+
+        alert(details);
+    }
+}
+
+// 导出无效数据
+function exportInvalidData() {
+    const analysisId = "{{ analysis_id }}";
+    if (!analysisId) {
+        alert('无法获取分析ID');
+        return;
+    }
+
+    // 显示加载中
+    const exportBtn = event.target;
+    const originalHtml = exportBtn.innerHTML;
+    exportBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> 导出中...';
+    exportBtn.disabled = true;
+
+    // 调用导出接口
+    window.location.href = `/export/invalid_data/${analysisId}`;
+
+    // 3秒后恢复按钮状态
+    setTimeout(() => {
+        exportBtn.innerHTML = originalHtml;
+        exportBtn.disabled = false;
+    }, 3000);
+}
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', function() {
+    initReasonChart();
+
+    // 为表格行添加点击效果
+    document.querySelectorAll('#invalidDataTable tbody tr').forEach(row => {
+        row.addEventListener('click', function(e) {
+            if (!e.target.closest('button')) {
+                this.classList.toggle('table-active');
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

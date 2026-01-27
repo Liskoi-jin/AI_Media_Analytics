@@ -1,0 +1,235 @@
+/* static/css/auth.css */
+/* 登录页面专用样式 - 补充主样式 */
+
+/* 基础样式覆盖 */
+.auth-page {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.auth-container {
+    width: 100%;
+    max-width: 420px;
+    margin: 0 auto;
+}
+
+.auth-card {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.auth-card:hover {
+    box-shadow: 0 25px 80px rgba(0,0,0,0.2);
+    transform: translateY(-5px);
+}
+
+.auth-header {
+    background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%);
+    color: white;
+    padding: 30px 20px;
+    text-align: center;
+    position: relative;
+}
+
+.auth-header::after {
+    content: '';
+    position: absolute;
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 4px;
+    background: rgba(255,255,255,0.5);
+    border-radius: 2px;
+}
+
+.auth-header h1 {
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.auth-header p {
+    font-size: 14px;
+    opacity: 0.9;
+    margin: 0;
+}
+
+.auth-body {
+    padding: 40px;
+}
+
+/* 表单样式 */
+.auth-form-group {
+    margin-bottom: 25px;
+}
+
+.auth-form-label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: #374151;
+    font-size: 14px;
+}
+
+.auth-input-with-icon {
+    position: relative;
+}
+
+.auth-input-icon {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #9CA3AF;
+    font-size: 18px;
+}
+
+.auth-form-control {
+    width: 100%;
+    padding: 14px 16px 14px 50px;
+    border: 2px solid #E5E7EB;
+    border-radius: 10px;
+    font-size: 15px;
+    transition: all 0.3s ease;
+    background: #F9FAFB;
+}
+
+.auth-form-control:focus {
+    outline: none;
+    border-color: #3B82F6;
+    background: white;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+}
+
+/* 按钮样式 */
+.btn-auth {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.btn-auth:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(59, 130, 246, 0.3);
+}
+
+.btn-auth-secondary {
+    background: linear-gradient(135deg, #6B7280 0%, #4B5563 100%);
+}
+
+.btn-auth-secondary:hover {
+    box-shadow: 0 10px 25px rgba(107, 114, 128, 0.3);
+}
+
+/* 页脚样式 */
+.auth-footer {
+    text-align: center;
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px solid #E5E7EB;
+    color: #6B7280;
+    font-size: 14px;
+}
+
+.auth-footer a {
+    color: #3B82F6;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.auth-footer a:hover {
+    text-decoration: underline;
+}
+
+/* 系统品牌样式 */
+.auth-system-brand {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.auth-system-brand h2 {
+    font-size: 28px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+}
+
+.auth-system-brand p {
+    font-size: 14px;
+    color: #6B7280;
+    margin: 0;
+}
+
+/* 响应式调整 */
+@media (max-width: 480px) {
+    .auth-body {
+        padding: 30px 20px;
+    }
+
+    .auth-header {
+        padding: 25px 20px;
+    }
+
+    .auth-system-brand h2 {
+        font-size: 24px;
+    }
+}
+
+/* 动画效果 */
+@keyframes authSlideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.auth-floating-alert {
+    animation: authSlideInRight 0.3s ease-out;
+}
+
+/* 复选框样式 */
+.auth-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 25px;
+}
+
+.auth-checkbox input {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.auth-checkbox label {
+    font-size: 14px;
+    color: #6B7280;
+    cursor: pointer;
+    user-select: none;
+}

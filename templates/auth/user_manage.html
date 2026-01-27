@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>账号管理 - AI媒介分析系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/advanced-styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* 覆盖Bootstrap表格的白色背景 */
+        .table {
+            --bs-table-bg: rgba(26, 34, 50, 0.9) !important;
+            --bs-table-color: var(--text-light) !important;
+            --bs-table-striped-bg: rgba(30, 41, 59, 0.6) !important;
+            --bs-table-striped-color: var(--text-light) !important;
+            --bs-table-active-bg: rgba(99, 102, 241, 0.2) !important;
+            --bs-table-active-color: var(--text-light) !important;
+            --bs-table-hover-bg: rgba(99, 102, 241, 0.25) !important;
+            --bs-table-hover-color: var(--text-light) !important;
+            background-color: var(--bs-table-bg) !important;
+            color: var(--bs-table-color) !important;
+            border-color: var(--card-border) !important;
+        }
+
+        /* 表格容器 */
+        .table-responsive {
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--card-border);
+            background: rgba(26, 34, 50, 0.9) !important;
+        }
+
+        /* 表头样式 */
+        .table thead {
+            background: rgba(99, 102, 241, 0.4) !important;
+        }
+
+        .table thead th {
+            color: var(--text-light) !important;
+            font-weight: 700 !important;
+            border-bottom: 2px solid var(--card-border) !important;
+            background-color: transparent !important;
+            padding: 16px !important;
+            font-size: 15px !important;
+        }
+
+        /* 表格内容 */
+        .table tbody td {
+            color: var(--text-light) !important;
+            font-weight: 600 !important;
+            font-size: 14px !important;
+            padding: 14px 16px !important;
+            vertical-align: middle !important;
+            border-color: rgba(255, 255, 255, 0.1) !important;
+            background-color: transparent !important;
+        }
+
+        /* 条纹效果 */
+        .table-striped > tbody > tr:nth-of-type(odd) > * {
+            --bs-table-accent-bg: rgba(30, 41, 59, 0.6) !important;
+            color: var(--text-light) !important;
+        }
+
+        .table-striped > tbody > tr:nth-of-type(even) > * {
+            --bs-table-accent-bg: rgba(26, 34, 50, 0.8) !important;
+            color: var(--text-light) !important;
+        }
+
+        /* 悬停效果 */
+        .table-hover > tbody > tr:hover > * {
+            --bs-table-accent-bg: rgba(99, 102, 241, 0.25) !important;
+            color: var(--text-light) !important;
+        }
+
+        /* 卡片样式增强 */
+        .card {
+            background: var(--card-bg) !important;
+            border: 2px solid var(--card-border) !important;
+            border-radius: 18px !important;
+            box-shadow: var(--shadow) !important;
+            transition: var(--transition);
+            color: var(--text-light) !important;
+            overflow: hidden;
+        }
+
+        .card:hover {
+            border-color: var(--primary) !important;
+            box-shadow: var(--shadow-hover) !important;
+            transform: translateY(-3px);
+        }
+
+        .card-body {
+            background: transparent !important;
+            padding: 30px !important;
+        }
+
+        /* 徽章样式 */
+        .badge {
+            padding: 8px 16px !important;
+            border-radius: 20px !important;
+            font-weight: 600 !important;
+            font-size: 14px !important;
+            border: 2px solid transparent !important;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+            backdrop-filter: blur(10px);
+        }
+
+        .bg-danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+            border-color: rgba(239, 68, 68, 0.3) !important;
+            color: white !important;
+        }
+
+        .bg-primary {
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
+            border-color: rgba(99, 102, 241, 0.3) !important;
+            color: white !important;
+        }
+
+        .bg-success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+            border-color: rgba(16, 185, 129, 0.3) !important;
+            color: white !important;
+        }
+
+        .bg-secondary {
+            background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
+            border-color: rgba(107, 114, 128, 0.3) !important;
+            color: white !important;
+        }
+
+        /* 按钮样式 */
+        .btn {
+            border-radius: 12px !important;
+            padding: 10px 20px !important;
+            font-weight: 600 !important;
+            font-size: 15px !important;
+            transition: var(--transition) !important;
+            border: 2px solid transparent !important;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn-success {
+            background: var(--gradient-success) !important;
+            color: white !important;
+            border-color: rgba(16, 185, 129, 0.3) !important;
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(16, 185, 129, 0.3) !important;
+        }
+
+        .btn-info {
+            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%) !important;
+            color: white !important;
+            border-color: rgba(14, 165, 233, 0.3) !important;
+        }
+
+        .btn-info:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(14, 165, 233, 0.3) !important;
+        }
+
+        .btn-danger {
+            background: var(--gradient-danger) !important;
+            color: white !important;
+            border-color: rgba(239, 68, 68, 0.3) !important;
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(239, 68, 68, 0.3) !important;
+        }
+
+        .btn-sm {
+            padding: 6px 14px !important;
+            font-size: 14px !important;
+        }
+
+        /* 标题样式 */
+        h2 {
+            color: var(--text-light) !important;
+            font-weight: 700 !important;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.4);
+            font-size: 28px !important;
+        }
+
+        /* 提示框样式 */
+        .alert {
+            background: rgba(30, 41, 59, 0.95) !important;
+            border: 2px solid var(--card-border) !important;
+            border-radius: 12px !important;
+            color: var(--text-light) !important;
+            border-left: 6px solid;
+            backdrop-filter: blur(10px);
+            box-shadow: var(--shadow);
+        }
+
+        .alert-success {
+            border-left-color: #10b981 !important;
+        }
+
+        .alert-danger {
+            border-left-color: #ef4444 !important;
+        }
+
+        .alert-warning {
+            border-left-color: #f59e0b !important;
+        }
+
+        .alert-info {
+            border-left-color: #6366f1 !important;
+        }
+
+        .btn-close {
+            filter: invert(1) !important;
+            opacity: 0.8;
+        }
+
+        .btn-close:hover {
+            opacity: 1;
+        }
+
+        /* 模态框样式 */
+        .modal-content {
+            background: var(--card-bg) !important;
+            border: 2px solid var(--card-border) !important;
+            border-radius: 20px !important;
+            color: var(--text-light) !important;
+            box-shadow: var(--shadow-hover) !important;
+        }
+
+        .modal-header, .modal-footer {
+            border-color: var(--card-border) !important;
+        }
+
+        .modal-title {
+            color: var(--text-light) !important;
+            font-weight: 700 !important;
+        }
+
+        .modal-body {
+            color: var(--text-muted) !important;
+            font-size: 16px !important;
+            font-weight: 500 !important;
+        }
+
+        /* 响应式调整 */
+        @media (max-width: 768px) {
+            .card-body {
+                padding: 20px !important;
+            }
+
+            .table thead th,
+            .table tbody td {
+                padding: 12px 10px !important;
+                font-size: 14px !important;
+            }
+
+            .badge {
+                padding: 6px 12px !important;
+                font-size: 12px !important;
+            }
+
+            .btn {
+                padding: 8px 16px !important;
+                font-size: 14px !important;
+            }
+
+            h2 {
+                font-size: 24px !important;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .table-responsive {
+                border-radius: 10px;
+                border: 1px solid var(--card-border);
+            }
+
+            .btn-sm {
+                padding: 4px 10px !important;
+                font-size: 12px !important;
+                margin-bottom: 4px;
+            }
+        }
+
+        /* 空数据行 */
+        .table tbody tr:last-child td {
+            background: rgba(30, 41, 59, 0.7) !important;
+            text-align: center;
+            color: var(--text-muted) !important;
+            font-size: 16px !important;
+            font-weight: 500 !important;
+            padding: 30px !important;
+        }
+    </style>
+</head>
+<body>
+    {% extends "base.html" %}  <!-- 继承原有系统的基础模板 -->
+
+    {% block content %}
+    <div class="container mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="fas fa-users-cog me-2"></i>账号管理</h2>
+            <a href="{{ url_for('auth.add_user') }}" class="btn btn-success">
+                <i class="fas fa-plus me-2"></i>开通新账号
+            </a>
+        </div>
+
+        <!-- 消息提示 -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- 用户列表表格 -->
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped">
+                        <thead>
+                            <tr>
+                                <th>序号</th>
+                                <th>登录账号</th>
+                                <th>用户姓名</th>
+                                <th>邮箱</th>
+                                <th>手机号</th>
+                                <th>角色</th>
+                                <th>状态</th>
+                                <th>创建时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td>{{ user.username }}</td>
+                                <td>{{ user.full_name or '未设置' }}</td>
+                                <td>{{ user.email or '未设置' }}</td>
+                                <td>{{ user.phone or '未设置' }}</td>
+                                <td>
+                                    {% if user.is_admin() %}
+                                    <span class="badge bg-danger">管理员</span>
+                                    {% else %}
+                                    <span class="badge bg-primary">普通用户</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if user.status == 1 %}
+                                    <span class="badge bg-success">启用</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">禁用</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ user.create_time.strftime('%Y-%m-%d') }}</td>
+                                <td>
+                                    <div class="d-flex flex-wrap gap-2">
+                                        <a href="{{ url_for('auth.edit_user', user_id=user.id) }}" class="btn btn-sm btn-info">
+                                            <i class="fas fa-edit"></i> 编辑
+                                        </a>
+                                        <button class="btn btn-sm btn-danger" onclick="deleteUser({{ user.id }})">
+                                            <i class="fas fa-trash"></i> 删除
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="9" class="text-center py-3">暂无用户数据</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 删除确认模态框 -->
+    <div class="modal fade" id="deleteModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-exclamation-triangle text-danger me-2"></i>确认删除</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>确定要删除该用户吗？删除后不可恢复！</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <form id="deleteForm" method="POST" style="margin: 0;">
+                        <button type="submit" class="btn btn-danger">确认删除</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 删除用户函数
+        function deleteUser(userId) {
+            // 设置删除表单的action
+            const deleteForm = document.getElementById('deleteForm');
+            deleteForm.action = `/auth/delete-user/${userId}`;
+            // 显示模态框
+            const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+            deleteModal.show();
+        }
+    </script>
+    {% endblock %}
+</body>
+</html>

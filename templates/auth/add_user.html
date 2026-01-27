@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>开通新账号 - AI媒介分析系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/advanced-styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+    <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* 增强卡片样式 */
+        .card {
+            background: var(--card-bg) !important;
+            border: 2px solid var(--card-border) !important;
+            border-radius: 18px !important;
+            box-shadow: var(--shadow) !important;
+            transition: var(--transition);
+            color: var(--text-light) !important;
+        }
+
+        .card:hover {
+            border-color: var(--primary) !important;
+            box-shadow: var(--shadow-hover) !important;
+            transform: translateY(-3px);
+        }
+
+        .card-body {
+            background: transparent !important;
+        }
+
+        /* 表单样式 */
+        .form-label {
+            color: var(--text-light) !important;
+            font-weight: 600 !important;
+            font-size: 16px !important;
+            margin-bottom: 8px;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+
+        .form-control, .form-select {
+            background: rgba(30, 41, 59, 0.8) !important;
+            border: 2px solid var(--card-border) !important;
+            border-radius: 12px !important;
+            color: var(--text-light) !important;
+            padding: 12px 16px !important;
+            font-size: 16px !important;
+            font-weight: 500 !important;
+            transition: var(--transition);
+        }
+
+        .form-control:focus, .form-select:focus {
+            background: rgba(30, 41, 59, 0.9) !important;
+            border-color: var(--primary) !important;
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2) !important;
+            color: var(--text-light) !important;
+            outline: none;
+        }
+
+        .form-text {
+            color: var(--text-muted) !important;
+            font-size: 14px !important;
+            margin-top: 6px;
+            font-weight: 500 !important;
+        }
+
+        .text-danger {
+            color: #ef4444 !important;
+        }
+
+        /* 复选框样式 */
+        .form-check-input {
+            background-color: rgba(30, 41, 59, 0.8) !important;
+            border: 2px solid var(--card-border) !important;
+            width: 20px !important;
+            height: 20px !important;
+            margin-top: 0.3rem !important;
+        }
+
+        .form-check-input:checked {
+            background-color: var(--primary) !important;
+            border-color: var(--primary) !important;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2) !important;
+        }
+
+        .form-check-label {
+            color: var(--text-light) !important;
+            font-weight: 500 !important;
+            font-size: 16px !important;
+            cursor: pointer;
+            margin-left: 8px;
+        }
+
+        /* 按钮样式 */
+        .btn {
+            border-radius: 12px !important;
+            padding: 12px 30px !important;
+            font-weight: 600 !important;
+            font-size: 16px !important;
+            transition: var(--transition) !important;
+            border: 2px solid transparent !important;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn-success {
+            background: var(--gradient-success) !important;
+            color: white !important;
+            border-color: rgba(16, 185, 129, 0.3) !important;
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(16, 185, 129, 0.3) !important;
+        }
+
+        .btn-secondary {
+            background: rgba(30, 41, 59, 0.8) !important;
+            color: var(--text-light) !important;
+            border-color: var(--card-border) !important;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(99, 102, 241, 0.2) !important;
+            border-color: var(--primary) !important;
+            transform: translateY(-2px);
+        }
+
+        /* 标题样式 */
+        h2 {
+            color: var(--text-light) !important;
+            font-weight: 700 !important;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.4);
+            font-size: 28px !important;
+        }
+
+        /* 提示框样式 */
+        .alert {
+            background: rgba(30, 41, 59, 0.95) !important;
+            border: 2px solid var(--card-border) !important;
+            border-radius: 12px !important;
+            color: var(--text-light) !important;
+            border-left: 6px solid;
+            backdrop-filter: blur(10px);
+            box-shadow: var(--shadow);
+        }
+
+        .alert-success {
+            border-left-color: #10b981 !important;
+        }
+
+        .alert-danger {
+            border-left-color: #ef4444 !important;
+        }
+
+        .alert-warning {
+            border-left-color: #f59e0b !important;
+        }
+
+        .alert-info {
+            border-left-color: #6366f1 !important;
+        }
+
+        .btn-close {
+            filter: invert(1) !important;
+            opacity: 0.8;
+        }
+
+        .btn-close:hover {
+            opacity: 1;
+        }
+
+        /* 响应式调整 */
+        @media (max-width: 768px) {
+            .card {
+                padding: 25px !important;
+            }
+
+            .btn {
+                padding: 10px 20px !important;
+                font-size: 15px !important;
+            }
+
+            h2 {
+                font-size: 24px !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    {% extends "base.html" %}
+
+    {% block content %}
+    <div class="container mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="fas fa-user-plus me-2"></i>开通新账号</h2>
+            <a href="{{ url_for('auth.user_manage') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>返回列表
+            </a>
+        </div>
+
+        <!-- 消息提示 -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- 新增账号表单 -->
+        <div class="card col-md-8 mx-auto">
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('auth.add_user') }}">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="username" class="form-label">登录账号 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="username" name="username"
+                                   value="{{ username or '' }}" required>
+                            <div class="form-text">账号唯一，不可重复</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="password" class="form-label">登录密码 <span class="text-danger">*</span></label>
+                            <input type="password" class="form-control" id="password" name="password" required>
+                            <div class="form-text">密码长度不少于6位</div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="full_name" class="form-label">用户姓名</label>
+                            <input type="text" class="form-control" id="full_name" name="full_name"
+                                   value="{{ full_name or '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="email" class="form-label">邮箱</label>
+                            <input type="email" class="form-control" id="email" name="email"
+                                   value="{{ email or '' }}">
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="phone" class="form-label">手机号</label>
+                            <input type="tel" class="form-control" id="phone" name="phone"
+                                   value="{{ phone or '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="role" class="form-label">角色</label>
+                            <select class="form-select" id="role" name="role">
+                                <option value="user" {% if role == 'user' %}selected{% endif %}>普通用户</option>
+                                <option value="admin" {% if role == 'admin' %}selected{% endif %}>管理员</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="status" name="status" checked>
+                        <label class="form-check-label" for="status">账号启用</label>
+                    </div>
+
+                    <div class="d-flex justify-content-center gap-3">
+                        <button type="submit" class="btn btn-success px-5">
+                            <i class="fas fa-save me-2"></i>保存
+                        </button>
+                        <button type="reset" class="btn btn-secondary px-5">
+                            <i class="fas fa-refresh me-2"></i>重置
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endblock %}
+</body>
+</html>

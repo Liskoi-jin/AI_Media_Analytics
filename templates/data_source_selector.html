@@ -1,0 +1,546 @@
+{% extends "base.html" %}
+
+{% block title %}数据来源选择 - AI媒介自动化审计分析系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-5 px-3 px-md-4">
+    <!-- 页面标题区 -->
+    <div class="page-title-section mb-5">
+        <div class="d-flex align-items-center mb-4">
+            <div class="icon-wrapper icon-wrapper-lg me-4">
+                <i class="fas fa-database fa-2x"></i>
+            </div>
+            <div>
+                <h1 class="page-title mb-2">数据来源选择</h1>
+                <p class="page-subtitle">请选择您要进行分析的数据来源方式</p>
+            </div>
+        </div>
+        <div class="alert alert-info border-start border-3 border-info py-3 px-4">
+            <i class="fas fa-info-circle me-2"></i>
+            系统支持两种数据获取方式：上传本地文件或直接从数据库读取。选择适合您需求的方式开始分析。
+        </div>
+    </div>
+
+    <!-- 选择卡片网格 -->
+    <div class="row g-4 mb-5">
+        <!-- 上传文件选项 -->
+        <div class="col-lg-6">
+            <div class="selection-card selection-card-primary fade-in">
+                <div class="card-decoration"></div>
+                <div class="selection-card-inner">
+                    <div class="selection-icon-wrapper mb-4">
+                        <div class="selection-icon">
+                            <i class="fas fa-file-upload fa-2x"></i>
+                        </div>
+                    </div>
+                    <h3 class="selection-title mb-3">上传文件分析</h3>
+                    <p class="selection-description mb-4">
+                        上传Excel/CSV格式的文件，系统将自动对数据进行清洗、预处理和分析，适合本地数据文件分析。
+                    </p>
+                    <div class="feature-list mb-4">
+                        <div class="feature-item">
+                            <i class="fas fa-check-circle text-success me-2"></i>
+                            <span>支持Excel/CSV格式</span>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fas fa-check-circle text-success me-2"></i>
+                            <span>自动数据清洗</span>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fas fa-check-circle text-success me-2"></i>
+                            <span>智能格式识别</span>
+                        </div>
+                    </div>
+                    <a href="{{ url_for('index') }}" class="btn btn-primary-gradient w-100 py-3 btn-action">
+                        <i class="fas fa-upload me-2"></i>进入上传页面
+                    </a>
+                </div>
+                <div class="selection-card-footer">
+                    <i class="fas fa-clock me-1"></i>推荐用于临时或一次性分析
+                </div>
+            </div>
+        </div>
+
+        <!-- 数据库读取选项 -->
+        <div class="col-lg-6">
+            <div class="selection-card selection-card-success fade-in">
+                <div class="card-decoration"></div>
+                <div class="selection-card-inner">
+                    <div class="selection-icon-wrapper mb-4">
+                        <div class="selection-icon">
+                            <i class="fas fa-database fa-2x"></i>
+                        </div>
+                    </div>
+                    <h3 class="selection-title mb-3">数据库直接读取</h3>
+                    <p class="selection-description mb-4">
+                        直接从数据库读取指定时间段的数据，无需文件上传，适合定期分析或大数据量场景。
+                    </p>
+                    <div class="feature-list mb-4">
+                        <div class="feature-item">
+                            <i class="fas fa-check-circle text-success me-2"></i>
+                            <span>实时数据读取</span>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fas fa-check-circle text-success me-2"></i>
+                            <span>时间段灵活选择</span>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fas fa-check-circle text-success me-2"></i>
+                            <span>支持多模块分析</span>
+                        </div>
+                    </div>
+                    <a href="{{ url_for('db_analysis_index') }}" class="btn btn-success-gradient w-100 py-3 btn-action">
+                        <i class="fas fa-database me-2"></i>进入数据库分析页面
+                    </a>
+                </div>
+                <div class="selection-card-footer">
+                    <i class="fas fa-sync-alt me-1"></i>推荐用于定期或大数据量分析
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 使用提示 -->
+    <div class="selection-guide-card mt-5">
+        <div class="row align-items-center">
+            <div class="col-md-3 text-center mb-md-0 mb-3">
+                <div class="guide-icon-wrapper">
+                    <i class="fas fa-lightbulb"></i>
+                </div>
+                <h5 class="mt-3 mb-0">如何选择？</h5>
+            </div>
+            <div class="col-md-9">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="guide-section guide-section-primary">
+                            <h6 class="guide-section-title mb-3">
+                                <i class="fas fa-file-upload me-2"></i>选择"上传文件分析"如果：
+                            </h6>
+                            <ul class="guide-list">
+                                <li><i class="fas fa-check me-2"></i>您有本地Excel/CSV文件需要分析</li>
+                                <li><i class="fas fa-check me-2"></i>数据不需要实时更新</li>
+                                <li><i class="fas fa-check me-2"></i>只需进行一次性或临时分析</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="guide-section guide-section-success">
+                            <h6 class="guide-section-title mb-3">
+                                <i class="fas fa-database me-2"></i>选择"数据库读取"如果：
+                            </h6>
+                            <ul class="guide-list">
+                                <li><i class="fas fa-check me-2"></i>需要分析数据库中的实时数据</li>
+                                <li><i class="fas fa-check me-2"></i>需要定期执行相同分析任务</li>
+                                <li><i class="fas fa-check me-2"></i>数据量较大或需要历史数据对比</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* 选择卡片样式 */
+    .selection-card {
+        background: var(--card-bg);
+        border: 2px solid var(--card-border);
+        border-radius: 24px;
+        padding: 40px 35px;
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.1);
+        height: 100%;
+        position: relative;
+        overflow: hidden;
+        box-shadow: var(--shadow);
+    }
+
+    .selection-card-primary {
+        border-top: 6px solid var(--primary);
+    }
+
+    .selection-card-success {
+        border-top: 6px solid var(--secondary);
+    }
+
+    .card-decoration {
+        position: absolute;
+        top: -50px;
+        right: -50px;
+        width: 150px;
+        height: 150px;
+        background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), transparent);
+        border-radius: 50%;
+        opacity: 0.5;
+    }
+
+    .selection-card:hover {
+        transform: translateY(-10px);
+        border-color: var(--primary);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    .selection-card:hover .card-decoration {
+        animation: rotate 20s linear infinite;
+    }
+
+    .selection-card-inner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        height: 100%;
+        position: relative;
+        z-index: 2;
+    }
+
+    .selection-icon-wrapper {
+        position: relative;
+        margin-bottom: 30px;
+    }
+
+    .selection-icon {
+        width: 100px;
+        height: 100px;
+        border-radius: 25px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        margin: 0 auto;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    }
+
+    .selection-card-primary .selection-icon {
+        background: var(--gradient-primary);
+    }
+
+    .selection-card-success .selection-icon {
+        background: var(--gradient-success);
+    }
+
+    .selection-title {
+        font-size: 26px;
+        font-weight: 700;
+        color: white;
+        margin-bottom: 20px;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .selection-description {
+        color: var(--text-gray);
+        font-size: 17px;
+        line-height: 1.7;
+        margin-bottom: 30px;
+        flex-grow: 1;
+    }
+
+    .selection-card-footer {
+        color: var(--text-muted);
+        font-size: 15px;
+        padding-top: 20px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        margin-top: 20px;
+        text-align: center;
+    }
+
+    /* 特性列表 */
+    .feature-list {
+        width: 100%;
+        margin-bottom: 30px;
+    }
+
+    .feature-item {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 12px;
+        color: var(--text-gray);
+        font-size: 16px;
+        padding: 8px 15px;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    /* 按钮样式 */
+    .btn-primary-gradient {
+        background: var(--gradient-primary);
+        border: none;
+        border-radius: 15px;
+        color: white;
+        font-weight: 600;
+        font-size: 17px;
+        padding: 16px 30px;
+        transition: all 0.3s ease;
+        box-shadow: 0 8px 25px rgba(99, 102, 241, 0.4);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .btn-primary-gradient::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+        transition: left 0.5s ease;
+    }
+
+    .btn-primary-gradient:hover::before {
+        left: 100%;
+    }
+
+    .btn-primary-gradient:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 12px 30px rgba(99, 102, 241, 0.5);
+        color: white;
+    }
+
+    .btn-success-gradient {
+        background: var(--gradient-success);
+        border: none;
+        border-radius: 15px;
+        color: white;
+        font-weight: 600;
+        font-size: 17px;
+        padding: 16px 30px;
+        transition: all 0.3s ease;
+        box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .btn-success-gradient::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+        transition: left 0.5s ease;
+    }
+
+    .btn-success-gradient:hover::before {
+        left: 100%;
+    }
+
+    .btn-success-gradient:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 12px 30px rgba(16, 185, 129, 0.5);
+        color: white;
+    }
+
+    /* 页面标题优化 */
+    .page-subtitle {
+        color: var(--text-gray);
+        font-size: 18px;
+        opacity: 0.9;
+    }
+
+    .icon-wrapper-lg {
+        width: 70px;
+        height: 70px;
+        background: rgba(99, 102, 241, 0.2);
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid rgba(99, 102, 241, 0.3);
+    }
+
+    /* 使用提示卡片 */
+    .selection-guide-card {
+        background: linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(26, 34, 50, 0.9));
+        border: 2px solid var(--card-border);
+        border-radius: 24px;
+        padding: 40px;
+        box-shadow: var(--shadow);
+    }
+
+    .guide-icon-wrapper {
+        width: 80px;
+        height: 80px;
+        background: linear-gradient(135deg, #fbbf24, #f59e0b);
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto;
+        color: white;
+        font-size: 32px;
+        box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3);
+    }
+
+    .guide-section {
+        padding: 25px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        height: 100%;
+    }
+
+    .guide-section-primary {
+        border-left: 4px solid var(--primary);
+    }
+
+    .guide-section-success {
+        border-left: 4px solid var(--secondary);
+    }
+
+    .guide-section-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: white;
+        display: flex;
+        align-items: center;
+    }
+
+    .guide-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .guide-list li {
+        color: var(--text-gray);
+        margin-bottom: 12px;
+        font-size: 16px;
+        display: flex;
+        align-items: center;
+        padding: 8px 0;
+    }
+
+    .guide-list li i {
+        font-size: 14px;
+    }
+
+    .guide-section-primary .guide-list li i {
+        color: var(--primary);
+    }
+
+    .guide-section-success .guide-list li i {
+        color: var(--secondary);
+    }
+
+    /* 动画 */
+    @keyframes rotate {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .fade-in {
+        opacity: 0;
+        transform: translateY(30px);
+        animation: fadeInUp 0.8s ease forwards;
+    }
+
+    @keyframes fadeInUp {
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* 响应式调整 */
+    @media (max-width: 768px) {
+        .selection-card {
+            padding: 30px 25px;
+        }
+
+        .selection-icon {
+            width: 80px;
+            height: 80px;
+            border-radius: 20px;
+        }
+
+        .selection-title {
+            font-size: 22px;
+        }
+
+        .selection-description {
+            font-size: 16px;
+        }
+
+        .selection-guide-card {
+            padding: 30px 25px;
+        }
+
+        .guide-section {
+            padding: 20px;
+        }
+    }
+
+    @media (max-width: 576px) {
+        .selection-card {
+            padding: 25px 20px;
+        }
+
+        .selection-icon {
+            width: 70px;
+            height: 70px;
+            border-radius: 18px;
+        }
+
+        .selection-title {
+            font-size: 20px;
+        }
+
+        .selection-guide-card {
+            padding: 25px 20px;
+        }
+
+        .guide-icon-wrapper {
+            width: 60px;
+            height: 60px;
+            font-size: 24px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 卡片悬停效果
+        const cards = document.querySelectorAll('.selection-card');
+
+        cards.forEach(card => {
+            card.addEventListener('mouseenter', function() {
+                this.style.zIndex = '10';
+            });
+
+            card.addEventListener('mouseleave', function() {
+                this.style.zIndex = '1';
+            });
+        });
+
+        // 页面加载动画
+        setTimeout(() => {
+            cards.forEach((card, index) => {
+                card.style.animationDelay = `${index * 0.2}s`;
+                card.classList.add('fade-in');
+            });
+        }, 100);
+
+        // 按钮点击效果
+        const buttons = document.querySelectorAll('.btn-action');
+        buttons.forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                // 添加点击效果
+                this.style.transform = 'scale(0.98)';
+                setTimeout(() => {
+                    this.style.transform = '';
+                }, 150);
+            });
+        });
+    });
+</script>
+{% endblock %}

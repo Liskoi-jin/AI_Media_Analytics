@@ -1,0 +1,1680 @@
+{% extends "base.html" %}
+
+{% block title %}成本效益分析 - AI媒介自动化审计分析系统{% endblock %}
+{% block page_title %}成本效益分析{% endblock %}
+{% block page_subtitle %}深入分析媒介成本效益与返点情况{% endblock %}
+{% block breadcrumb %}
+    <li class="breadcrumb-item"><a href="{{ url_for('dashboard', analysis_id=analysis_id) }}" class="text-decoration-none text-primary fw-medium" style="font-size: 16px;"><i class="fas fa-tachometer-alt me-1"></i>仪表盘</a></li>
+    <li class="breadcrumb-item active" style="color: var(--text-light);"><i class="fas fa-coins me-1"></i>成本效益分析</li>
+{% endblock %}
+
+{% block page_actions %}
+<div class="d-flex gap-2">
+    <div class="dropdown">
+        <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+            <i class="fas fa-download me-1"></i> 导出
+        </button>
+        <ul class="dropdown-menu dropdown-advanced">
+            <li><a class="dropdown-item" href="{{ url_for('download_report', analysis_id=analysis_id, report_type='cost') }}">
+                <i class="fas fa-file-excel text-success me-2"></i>导出完整Excel报告
+            </a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="#" onclick="downloadSheet('media_group_workload')">
+                <i class="fas fa-users text-info me-2"></i>导出媒介小组工作量分析
+            </a></li>
+            <li><a class="dropdown-item" href="#" onclick="downloadSheet('fixed_media_workload')">
+                <i class="fas fa-user-tie text-primary me-2"></i>导出定档媒介工作量分析
+            </a></li>
+            <li><a class="dropdown-item" href="#" onclick="downloadSheet('fixed_media_cost')">
+                <i class="fas fa-money-bill-wave text-warning me-2"></i>导出定档媒介成本分析
+            </a></li>
+            <li><a class="dropdown-item" href="#" onclick="downloadSheet('fixed_media_rebate')">
+                <i class="fas fa-percentage text-success me-2"></i>导出定档媒介返点分析
+            </a></li>
+            <li><a class="dropdown-item" href="#" onclick="downloadSheet('fixed_media_performance')">
+                <i class="fas fa-chart-line text-info me-2"></i>导出定档媒介效果分析
+            </a></li>
+            <li><a class="dropdown-item" href="#" onclick="downloadSheet('fixed_media_level')">
+                <i class="fas fa-star text-warning me-2"></i>导出定档媒介达人量级分析
+            </a></li>
+            <li><a class="dropdown-item" href="#" onclick="downloadSheet('fixed_media_comprehensive')">
+                <i class="fas fa-chart-bar text-primary me-2"></i>导出定档媒介综合分析
+            </a></li>
+        </ul>
+    </div>
+    <button class="btn btn-advanced" onclick="toggleDataView()">
+        <i class="fas fa-exchange-alt me-1"></i> 切换视图
+    </button>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .analysis-section {
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: 16px;
+        padding: 25px;
+        margin-bottom: 25px;
+        transition: var(--transition);
+    }
+
+    .analysis-section:hover {
+        border-color: var(--primary);
+        box-shadow: var(--shadow-hover);
+    }
+
+    .section-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 25px;
+        padding-bottom: 20px;
+        border-bottom: 2px solid var(--card-border);
+    }
+
+    .section-icon {
+        width: 50px;
+        height: 50px;
+        background: rgba(245, 158, 11, 0.15);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 15px;
+        border: 1px solid rgba(245, 158, 11, 0.25);
+    }
+
+    .section-icon i {
+        color: #f59e0b;
+        font-size: 1.3rem;
+    }
+
+    .section-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--text-light);
+        margin: 0;
+    }
+
+    .section-subtitle {
+        color: var(--text-gray);
+        font-size: 0.95rem;
+        margin-top: 5px;
+    }
+
+    .summary-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-bottom: 25px;
+    }
+
+    .summary-card {
+        background: rgba(30, 41, 59, 0.5);
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid var(--card-border);
+        transition: var(--transition);
+    }
+
+    .summary-card:hover {
+        border-color: #f59e0b;
+        transform: translateY(-3px);
+    }
+
+    .summary-value {
+        font-size: 2.2rem;
+        font-weight: 700;
+        background: linear-gradient(90deg, #f59e0b, #f97316);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        line-height: 1;
+        margin-bottom: 5px;
+    }
+
+    .summary-label {
+        color: var(--text-gray);
+        font-size: 0.9rem;
+        margin-bottom: 10px;
+    }
+
+    .summary-trend {
+        display: flex;
+        align-items: center;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+
+    .cost-badge {
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .badge-excellent {
+        background: rgba(16, 185, 129, 0.2);
+        color: #10b981;
+        border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .badge-good {
+        background: rgba(59, 130, 246, 0.2);
+        color: #3b82f6;
+        border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+
+    .badge-average {
+        background: rgba(245, 158, 11, 0.2);
+        color: #f59e0b;
+        border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .badge-poor {
+        background: rgba(239, 68, 68, 0.2);
+        color: #ef4444;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    /* 表格标签页样式 - 与质量分析保持一致 */
+    .table-tabs {
+        border-bottom: 2px solid var(--card-border);
+        margin-bottom: 20px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+    }
+
+    .table-tab {
+        padding: 12px 25px;
+        background: transparent;
+        border: none;
+        color: var(--text-gray);
+        font-weight: 500;
+        position: relative;
+        transition: var(--transition);
+        cursor: pointer;
+        font-size: 0.95rem;
+        border-radius: 8px 8px 0 0;
+    }
+
+    .table-tab:hover {
+        color: var(--primary);
+        background: rgba(245, 158, 11, 0.05);
+    }
+
+    .table-tab.active {
+        color: #f59e0b;
+        background: rgba(245, 158, 11, 0.1);
+        border-bottom: 2px solid #f59e0b;
+    }
+
+    /* 表格搜索容器 - 与质量分析保持一致 */
+    .table-search-container {
+        margin-bottom: 20px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    /* 表格内容区域 */
+    .table-content {
+        background: rgba(30, 41, 59, 0.5);
+        border: 1px solid var(--card-border);
+        border-radius: 12px;
+        padding: 20px;
+        margin-top: 10px;
+    }
+
+    .table-controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .export-mini-btn {
+        padding: 8px 12px;
+        font-size: 0.85rem;
+        white-space: nowrap;
+    }
+
+    .no-data {
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--text-gray);
+    }
+
+    .no-data-icon {
+        width: 80px;
+        height: 80px;
+        background: rgba(245, 158, 11, 0.1);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 20px;
+        border: 2px solid rgba(245, 158, 11, 0.2);
+    }
+
+    .no-data-icon i {
+        color: #f59e0b;
+        font-size: 2rem;
+    }
+
+    /* 表格样式修改为深色背景 - 与质量分析保持一致 */
+    .table-advanced {
+        background: var(--card-bg);
+        color: var(--text-light);
+        border-color: var(--card-border);
+    }
+
+    .table-advanced thead th {
+        background: rgba(15, 23, 42, 0.7);
+        border-bottom: 2px solid var(--card-border);
+        color: var(--text-light);
+        font-weight: 600;
+        padding: 12px 16px;
+    }
+
+    .table-advanced tbody td {
+        background: rgba(30, 41, 59, 0.5);
+        border-color: var(--card-border);
+        padding: 12px 16px;
+        color: var(--text-light);
+    }
+
+    .table-advanced tbody tr:hover td {
+        background: rgba(245, 158, 11, 0.1);
+    }
+
+    .table-advanced tbody tr:nth-child(even) td {
+        background: rgba(30, 41, 59, 0.3);
+    }
+
+    .table-advanced tbody tr:hover:nth-child(even) td {
+        background: rgba(245, 158, 11, 0.15);
+    }
+
+    /* 小组徽章样式 */
+    .group-badge {
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+
+    .badge-blue {
+        background: rgba(59, 130, 246, 0.2);
+        color: #3b82f6;
+        border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+
+    .badge-green {
+        background: rgba(16, 185, 129, 0.2);
+        color: #10b981;
+        border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .badge-orange {
+        background: rgba(245, 158, 11, 0.2);
+        color: #f59e0b;
+        border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .badge-gray {
+        background: rgba(107, 114, 128, 0.2);
+        color: #6b7280;
+        border: 1px solid rgba(107, 114, 128, 0.3);
+    }
+
+    /* 修改：指标卡片样式优化 - 改为4列布局 */
+    .metrics-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 15px;
+        margin-top: 20px;
+    }
+
+    .metric-card {
+        background: rgba(30, 41, 59, 0.5);
+        border: 1px solid var(--card-border);
+        border-radius: 12px;
+        overflow: hidden;
+        transition: var(--transition);
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .metric-card:hover {
+        border-color: #f59e0b;
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-hover);
+    }
+
+    .metric-header {
+        background: rgba(15, 23, 42, 0.7);
+        border-bottom: 1px solid var(--card-border);
+        padding: 16px 20px;
+        flex-shrink: 0;
+    }
+
+    .metric-header h5 {
+        color: var(--text-light);
+        margin: 0;
+        font-weight: 600;
+        font-size: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .metric-header h5 i {
+        color: #f59e0b;
+    }
+
+    .metric-body {
+        padding: 20px;
+        background: rgba(30, 41, 59, 0.3);
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+        flex-grow: 1;
+    }
+
+    .metric-item {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .metric-label {
+        color: var(--text-gray);
+        font-size: 0.85rem;
+        margin-bottom: 6px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.3;
+    }
+
+    .metric-value {
+        color: var(--text-light);
+        font-size: 1.1rem;
+        font-weight: 600;
+        line-height: 1.2;
+        min-height: 1.4rem;
+        display: flex;
+        align-items: center;
+    }
+
+    .metric-value.text-warning {
+        color: #f59e0b !important;
+    }
+
+    .metric-value.text-success {
+        color: #10b981 !important;
+    }
+
+    .metric-value.text-danger {
+        color: #ef4444 !important;
+    }
+
+    /* 新增：查看无效数据按钮样式 */
+    .invalid-data-btn {
+        margin-top: 12px;
+        width: 100%;
+        padding: 8px 12px;
+        font-size: 0.85rem;
+        text-align: center;
+    }
+
+    /* 响应式调整 */
+    @media (max-width: 1200px) {
+        .metrics-row {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @media (max-width: 992px) {
+        .summary-cards {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .metrics-row {
+            grid-template-columns: 1fr;
+        }
+
+        .summary-cards {
+            grid-template-columns: 1fr;
+        }
+
+        .table-tabs {
+            flex-direction: column;
+        }
+
+        .table-tab {
+            border-radius: 8px;
+            margin-bottom: 5px;
+        }
+
+        .table-tab.active::after {
+            display: none;
+        }
+
+        .table-controls {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .table-search-container {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .metric-grid {
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% macro format_number(value, decimal_places=2) %}
+    {% if value is number %}
+        {% if decimal_places == 0 %}
+            {{ "{:,.0f}".format(value) }}
+        {% else %}
+            {{ "{:,.{}f}".format(value, decimal_places) }}
+        {% endif %}
+    {% else %}
+        {{ value or "0" }}
+    {% endif %}
+{% endmacro %}
+
+{% macro format_percentage(value) %}
+    {% if value is string %}
+        {% set value_str = value|string %}
+        {% if '%' in value_str %}
+            {% set num_str = value_str|replace('%','')|trim %}
+            {% set num = num_str|float %}
+            {{ "%.2f%%"|format(num) }}
+        {% else %}
+            {% set num = value_str|float %}
+            {{ "%.2f%%"|format(num) }}
+        {% endif %}
+    {% elif value is number %}
+        {{ "%.2f%%"|format(value) }}
+    {% else %}
+        {{ "0.00%" }}
+    {% endif %}
+{% endmacro %}
+
+<!-- 概览区域 -->
+<div class="analysis-section fade-in">
+    <div class="section-header">
+        <div class="section-icon">
+            <i class="fas fa-chart-line"></i>
+        </div>
+        <div>
+            <h2 class="section-title">成本效益概览</h2>
+            <div class="section-subtitle">分析类目: {{ analysis_data.category }} | 分析时间: {{ analysis_data.timestamp }}</div>
+        </div>
+    </div>
+
+        <!-- 核心指标卡片 -->
+    <div class="summary-cards">
+        <div class="summary-card">
+            <div class="summary-value">
+                {{ overall_summary.get('平均成本', 0)|format_number(2) }}
+            </div>
+            <div class="summary-label">平均成本（元）</div>
+            <div class="summary-trend">
+                {% set avg_cost = overall_summary.get('平均成本', 0) %}
+                {% if avg_cost > 0 %}
+                    <i class="fas fa-arrow-down trend-down me-1"></i>
+                    <span class="trend-down">合理范围</span>
+                {% else %}
+                    <i class="fas fa-minus me-1"></i>
+                    <span>无数据</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="summary-card">
+            <div class="summary-value">
+                {{ format_percentage(overall_summary.get('整体返点占报价比例(%)', 0)) }}
+            </div>
+            <div class="summary-label">平均返点比例</div>
+            <div class="summary-trend">
+                {% set rebate_rate = overall_summary.get('整体返点占报价比例(%)', 0) %}
+                {% if rebate_rate and rebate_rate != '0%' %}
+                    <i class="fas fa-arrow-up trend-up me-1"></i>
+                    <span class="trend-up">效益良好</span>
+                {% else %}
+                    <i class="fas fa-minus me-1"></i>
+                    <span>需提升</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="summary-card">
+            <div class="summary-value">
+                {{ overall_summary.get('平均CPM', 0)|format_number(2) }}
+            </div>
+            <div class="summary-label">平均CPM（元）</div>
+            <div class="summary-trend">
+                {% set avg_cpm = overall_summary.get('平均CPM', 0) %}
+                {% if avg_cpm > 0 and avg_cpm < 100 %}
+                    <i class="fas fa-arrow-down trend-down me-1"></i>
+                    <span class="trend-down">成本优秀</span>
+                {% elif avg_cpm >= 100 and avg_cpm < 200 %}
+                    <i class="fas fa-arrow-right me-1"></i>
+                    <span>成本一般</span>
+                {% else %}
+                    <i class="fas fa-arrow-up trend-up me-1"></i>
+                    <span class="trend-up">成本偏高</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="summary-card">
+            <div class="summary-value">
+                {{ overall_summary.get('总媒介数', 0) }}
+            </div>
+            <div class="summary-label">总媒介数</div>
+            <div class="summary-trend">
+                {% set total_media = overall_summary.get('总媒介数', 0) %}
+                {% if total_media > 10 %}
+                    <i class="fas fa-check-circle text-success me-1"></i>
+                    <span class="text-success">覆盖广泛</span>
+                {% elif total_media > 5 %}
+                    <i class="fas fa-info-circle text-warning me-1"></i>
+                    <span class="text-warning">中等覆盖</span>
+                {% else %}
+                    <i class="fas fa-exclamation-circle text-danger me-1"></i>
+                    <span class="text-danger">覆盖不足</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 四栏指标卡片区域 -->
+    <div class="metrics-row">
+        <!-- 无效数据统计卡片 -->
+        <div class="metric-card">
+            <div class="metric-header">
+                <h5 class="mb-0"><i class="fas fa-database me-1"></i>无效数据统计</h5>
+            </div>
+            <div class="metric-body">
+                <div class="metric-grid">
+                    <div class="metric-item">
+                        <span class="metric-label">总数据条数</span>
+                        <span class="metric-value">{{ overall_summary.get('总数据条数', 0) }}</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">有效数据条数</span>
+                        <span class="metric-value text-success">{{ overall_summary.get('有效数据条数', 0) }}</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">无效数据条数</span>
+                        <span class="metric-value text-danger">{{ overall_summary.get('无效数据条数', 0) }}</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">无效数据比例</span>
+                        <span class="metric-value text-warning">{{ overall_summary.get('无效数据比例(%)', '0%') }}</span>
+                    </div>
+                </div>
+                {% if overall_summary.get('无效数据条数', 0) > 0 %}
+                <div class="mt-3">
+                    <a href="{{ url_for('cost_invalid_data_report', analysis_id=analysis_id) }}"
+                       class="btn btn-sm btn-outline-danger invalid-data-btn">
+                        <i class="fas fa-exclamation-triangle me-1"></i> 查看无效数据详情
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- 异常数据统计卡片 -->
+        <div class="metric-card">
+            <div class="metric-header">
+                <h5 class="mb-0"><i class="fas fa-exclamation-circle me-1"></i>异常数据统计</h5>
+            </div>
+            <div class="metric-body">
+                <div class="metric-grid">
+                    <div class="metric-item">
+                        <span class="metric-label">异常数据条数</span>
+                        <span class="metric-value text-warning">{{ overall_summary.get('异常数据条数', 0) }}</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">异常数据比例</span>
+                        <span class="metric-value text-warning">{{ overall_summary.get('异常数据比例(%)', '0%') }}</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">参与分析数据</span>
+                        <span class="metric-value text-success">{{ overall_summary.get('参与分析数据条数', 0) }}</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">参与分析比例</span>
+                        <span class="metric-value text-success">{{ overall_summary.get('参与分析数据比例(%)', '100%') }}</span>
+                    </div>
+                </div>
+                {% if overall_summary.get('异常数据条数', 0) > 0 %}
+                <div class="mt-3">
+                    <a href="{{ url_for('cost_abnormal_data_report', analysis_id=analysis_id) }}"
+                       class="btn btn-sm btn-outline-warning invalid-data-btn">
+                        <i class="fas fa-exclamation-circle me-1"></i> 查看异常数据详情
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- 成本指标卡片 -->
+        <div class="metric-card">
+            <div class="metric-header">
+                <h5 class="mb-0"><i class="fas fa-money-bill-wave me-1"></i>成本指标</h5>
+            </div>
+            <div class="metric-body">
+                <div class="metric-grid">
+                    <div class="metric-item">
+                        <span class="metric-label">总成本</span>
+                        <span class="metric-value text-warning">{{ overall_summary.get('总成本', 0)|format_number(2) }}元</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">总报价</span>
+                        <span class="metric-value">{{ overall_summary.get('总报价', 0)|format_number(2) }}元</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">成本占比</span>
+                        <span class="metric-value">{{ format_percentage(overall_summary.get('整体成本占报价比例(%)', 0)) }}</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">总返点金额</span>
+                        <span class="metric-value text-success">{{ overall_summary.get('总返点金额', 0)|format_number(2) }}元</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 数据统计卡片 -->
+        <div class="metric-card">
+            <div class="metric-header">
+                <h5 class="mb-0"><i class="fas fa-chart-bar me-1"></i>数据统计</h5>
+            </div>
+            <div class="metric-body">
+                <div class="metric-grid">
+                    <div class="metric-item">
+                        <span class="metric-label">总达人数</span>
+                        <span class="metric-value">{{ overall_summary.get('总达人数', 0) }}</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">总项目数</span>
+                        <span class="metric-value">{{ overall_summary.get('总项目数', 0) }}</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">总媒介数</span>
+                        <span class="metric-value">{{ overall_summary.get('总媒介数', 0) }}</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">平均CPE</span>
+                        <span class="metric-value">{{ overall_summary.get('平均CPE', 0)|format_number(2) }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 成本分析工作表区域 -->
+<div class="analysis-section fade-in" style="animation-delay: 0.1s;">
+    <div class="section-header">
+        <div class="section-icon">
+            <i class="fas fa-table"></i>
+        </div>
+        <div>
+            <h2 class="section-title">成本分析工作表</h2>
+            <div class="section-subtitle">详细成本效益数据表（支持单独下载）</div>
+        </div>
+    </div>
+
+    <!-- 表格标签页 -->
+    <div class="table-tabs">
+        <button class="table-tab active" onclick="showTable('media_group_workload')">媒介小组工作量分析</button>
+        <button class="table-tab" onclick="showTable('fixed_media_workload')">定档媒介工作量分析</button>
+        <button class="table-tab" onclick="showTable('fixed_media_cost')">定档媒介成本分析</button>
+        <button class="table-tab" onclick="showTable('fixed_media_rebate')">定档媒介返点分析</button>
+        <button class="table-tab" onclick="showTable('fixed_media_performance')">定档媒介效果分析</button>
+        <button class="table-tab" onclick="showTable('fixed_media_level')">定档媒介达人量级分析</button>
+        <button class="table-tab" onclick="showTable('fixed_media_comprehensive')">定档媒介综合分析</button>
+    </div>
+
+    <!-- 搜索和导出区域 -->
+    <div id="searchContainer" class="table-search-container">
+        <input type="text" id="searchInput" class="form-control form-control-advanced" placeholder="搜索媒介名称、小组..." onkeyup="searchTable()">
+        <button class="btn btn-sm btn-outline-success export-mini-btn" onclick="downloadCurrentTable()">
+            <i class="fas fa-download me-1"></i>导出当前表格
+        </button>
+        <button class="btn btn-sm btn-outline-secondary export-mini-btn" onclick="resetSearch()">
+            <i class="fas fa-redo me-1"></i>重置筛选
+        </button>
+    </div>
+
+    <!-- 媒介小组工作量分析表格 -->
+    <div id="media_group_workloadTable" class="table-content">
+        <div class="table-responsive">
+            <table class="table table-advanced table-hover">
+                <thead>
+                    <tr>
+                        <th>媒介小组</th>
+                        <th>总达人数</th>
+                        <th>总项目数</th>
+                        <th>媒介人数</th>
+                        <th>已发布数</th>
+                        <th>未发布数</th>
+                        <th>发布率(%)</th>
+                        <th>总成本(元)</th>
+                        <th>平均成本(元)</th>
+                        <th>总返点金额(元)</th>
+                        <th>平均返点金额(元)</th>
+                        <th>平均返点比例(%)</th>
+                        <th>返点表现</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if media_group_workload %}
+                        {% for row in media_group_workload %}
+                        <tr>
+                            <td class="fw-medium">{{ row.get('媒介小组', '') }}</td>
+                            <td>{{ row.get('总达人数', 0) }}</td>
+                            <td>{{ row.get('总项目数', 0) }}</td>
+                            <td>{{ row.get('媒介人数', 0) }}</td>
+                            <td>{{ row.get('已发布数', 0) }}</td>
+                            <td>{{ row.get('未发布数', 0) }}</td>
+                            <td>
+                                {% set publish_rate = row.get('发布率(%)', '0%') %}
+                                <span class="{% if publish_rate is string %}{% if publish_rate|replace('%','')|float >= 80 %}text-success{% elif publish_rate|replace('%','')|float >= 50 %}text-warning{% else %}text-danger{% endif %}{% endif %}">
+                                    {{ format_percentage(publish_rate) }}
+                                </span>
+                            </td>
+                            <td>{{ row.get('总成本(元)', 0)|format_number(2) }}</td>
+                            <td>{{ row.get('平均成本(元)', 0)|format_number(2) }}</td>
+                            <td class="text-success">{{ row.get('总返点金额(元)', 0)|format_number(2) }}</td>
+                            <td>{{ row.get('平均返点金额(元)', 0)|format_number(2) }}</td>
+                            <td>
+                                {% set rebate_rate = row.get('平均返点比例(%)', '0%') %}
+                                <span class="{% if rebate_rate is string %}{% if rebate_rate|replace('%','')|float >= 15 %}text-success{% elif rebate_rate|replace('%','')|float >= 8 %}text-warning{% else %}text-danger{% endif %}{% endif %}">
+                                    {{ format_percentage(rebate_rate) }}
+                                </span>
+                            </td>
+                            <td>
+                                {% set rebate_performance = row.get('返点表现', '待改进') %}
+                                <span class="cost-badge {% if rebate_performance == '优秀' %}badge-excellent{% elif rebate_performance == '良好' %}badge-good{% elif rebate_performance == '一般' %}badge-average{% else %}badge-poor{% endif %}">
+                                    {{ rebate_performance }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="13" class="text-center py-5">
+                                <div class="no-data">
+                                    <div class="no-data-icon">
+                                        <i class="fas fa-users"></i>
+                                    </div>
+                                    <h5 style="color: var(--text-light); margin: 15px 0 10px;">暂无小组工作量数据</h5>
+                                    <p style="color: var(--text-gray);">请运行成本分析获取数据</p>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+        {% if media_group_workload %}
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <div class="text-muted">
+                显示 {{ media_group_workload|length }} 条记录
+            </div>
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item disabled"><a class="page-link" href="#">上一页</a></li>
+                    <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                    <li class="page-item disabled"><a class="page-link" href="#">下一页</a></li>
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 定档媒介工作量分析表格 -->
+    <div id="fixed_media_workloadTable" class="table-content" style="display: none;">
+        <div class="table-responsive">
+            <table class="table table-advanced table-hover">
+                <thead>
+                    <tr>
+                        <th>定档媒介</th>
+                        <th>定档达人数</th>
+                        <th>合作项目数</th>
+                        <th>所属小组</th>
+                        <th>总互动量</th>
+                        <th>平均互动量</th>
+                        <th>总阅读量</th>
+                        <th>平均阅读量</th>
+                        <th>总返点金额(元)</th>
+                        <th>平均返点金额(元)</th>
+                        <th>平均返点比例(%)</th>
+                        <th>返点表现评估</th>
+                        <th>总手续费(元)</th>
+                        <th>平均手续费(元)</th>
+                        <th>图文视频比</th>
+                        <th>发布率(%)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if fixed_media_workload %}
+                        {% for row in fixed_media_workload %}
+                        <tr>
+                            <td class="fw-medium">{{ row.get('定档媒介', '') }}</td>
+                            <td>{{ row.get('定档达人数', 0) }}</td>
+                            <td>{{ row.get('合作项目数', 0) }}</td>
+                            <td>
+                                <span class="group-badge {% if row.get('所属小组', '') == '家居媒介组' %}badge-blue{% elif row.get('所属小组', '') == '快消媒介组' %}badge-green{% elif row.get('所属小组', '') == '数码媒介组' %}badge-orange{% else %}badge-gray{% endif %}">
+                                    {{ row.get('所属小组', '') }}
+                                </span>
+                            </td>
+                            <td>{{ row.get('总互动量', 0)|format_number(0) }}</td>
+                            <td>{{ row.get('平均互动量', 0)|format_number(0) }}</td>
+                            <td>{{ row.get('总阅读量', 0)|format_number(0) }}</td>
+                            <td>{{ row.get('平均阅读量', 0)|format_number(0) }}</td>
+                            <td class="text-success">{{ row.get('总返点金额(元)', 0)|format_number(2) }}</td>
+                            <td>{{ row.get('平均返点金额(元)', 0)|format_number(2) }}</td>
+                            <td>
+                                {% set rebate_rate = row.get('平均返点比例(%)', '0%') %}
+                                <span class="{% if rebate_rate is string %}{% if rebate_rate|replace('%','')|float >= 15 %}text-success{% elif rebate_rate|replace('%','')|float >= 8 %}text-warning{% else %}text-danger{% endif %}{% endif %}">
+                                    {{ format_percentage(rebate_rate) }}
+                                </span>
+                            </td>
+                            <td>
+                                {% set performance = row.get('返点表现评估', '待改进') %}
+                                <span class="cost-badge {% if performance in ['表现卓越','表现优秀'] %}badge-excellent{% elif performance == '表现良好' %}badge-good{% elif performance == '表现一般' %}badge-average{% else %}badge-poor{% endif %}">
+                                    {{ performance }}
+                                </span>
+                            </td>
+                            <td>{{ row.get('总手续费(元)', 0)|format_number(2) }}</td>
+                            <td>{{ row.get('平均手续费(元)', 0)|format_number(2) }}</td>
+                            <td>{{ row.get('图文视频比', '0:0') }}</td>
+                            <td>{{ format_percentage(row.get('发布率(%)', '0%')) }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="16" class="text-center py-5">
+                                <div class="no-data">
+                                    <div class="no-data-icon">
+                                        <i class="fas fa-user-tie"></i>
+                                    </div>
+                                    <h5 style="color: var(--text-light); margin: 15px 0 10px;">暂无媒介工作量数据</h5>
+                                    <p style="color: var(--text-gray);">请运行成本分析获取数据</p>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+        {% if fixed_media_workload %}
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <div class="text-muted">
+                显示 {{ fixed_media_workload|length }} 条记录
+            </div>
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item disabled"><a class="page-link" href="#">上一页</a></li>
+                    <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                    <li class="page-item disabled"><a class="page-link" href="#">下一页</a></li>
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 定档媒介成本分析表格 -->
+    <div id="fixed_media_costTable" class="table-content" style="display: none;">
+        <div class="table-responsive">
+            <table class="table table-advanced table-hover">
+                <thead>
+                    <tr>
+                        <th>定档媒介</th>
+                        <th>定档达人数</th>
+                        <th>所属小组</th>
+                        <th>总成本(元)</th>
+                        <th>平均成本(元)</th>
+                        <th>成本最大值(元)</th>
+                        <th>成本最小值(元)</th>
+                        <th>成本中位数(元)</th>
+                        <th>总报价(元)</th>
+                        <th>平均报价(元)</th>
+                        <th>报价最大值(元)</th>
+                        <th>报价最小值(元)</th>
+                        <th>总下单价(元)</th>
+                        <th>平均下单价(元)</th>
+                        <th>总节约金额(元)</th>
+                        <th>平均节约金额(元)</th>
+                        <th>成本占比(%)</th>
+                        <th>总返点金额(元)</th>
+                        <th>平均返点金额(元)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if fixed_media_cost %}
+                        {% for row in fixed_media_cost %}
+                        <tr>
+                            <td class="fw-medium">{{ row.get('定档媒介', '') }}</td>
+                            <td>{{ row.get('定档达人数', 0) }}</td>
+                            <td>
+                                <span class="group-badge {% if row.get('所属小组', '') == '家居媒介组' %}badge-blue{% elif row.get('所属小组', '') == '快消媒介组' %}badge-green{% elif row.get('所属小组', '') == '数码媒介组' %}badge-orange{% else %}badge-gray{% endif %}">
+                                    {{ row.get('所属小组', '') }}
+                                </span>
+                            </td>
+                            <td class="fw-bold">{{ row.get('总成本(元)', 0)|format_number(2) }}</td>
+                            <td>{{ row.get('平均成本(元)', 0)|format_number(2) }}</td>
+                            <td>{{ row.get('成本最大值(元)', 0)|format_number(2) }}</td>
+                            <td>{{ row.get('成本最小值(元)', 0)|format_number(2) }}</td>
+                            <td>{{ row.get('成本中位数(元)', 0)|format_number(2) }}</td>
+                            <td>{{ row.get('总报价(元)', 0)|format_number(2) }}</td>
+                            <td>{{ row.get('平均报价(元)', 0)|format_number(2) }}</td>
+                            <td>{{ row.get('报价最大值(元)', 0)|format_number(2) }}</td>
+                            <td>{{ row.get('报价最小值(元)', 0)|format_number(2) }}</td>
+                            <td>{{ row.get('总下单价(元)', 0)|format_number(2) }}</td>
+                            <td>{{ row.get('平均下单价(元)', 0)|format_number(2) }}</td>
+                            <td class="text-success">{{ row.get('总节约金额(元)', 0)|format_number(2) }}</td>
+                            <td>{{ row.get('平均节约金额(元)', 0)|format_number(2) }}</td>
+                            <td>
+                                {% set cost_ratio = row.get('成本占比(%)', '0%') %}
+                                <span class="{% if cost_ratio is string %}{% if cost_ratio|replace('%','')|float <= 60 %}text-success{% elif cost_ratio|replace('%','')|float <= 80 %}text-warning{% else %}text-danger{% endif %}{% endif %}">
+                                    {{ format_percentage(cost_ratio) }}
+                                </span>
+                            </td>
+                            <td class="text-success">{{ row.get('总返点金额(元)', 0)|format_number(2) }}</td>
+                            <td>{{ row.get('平均返点金额(元)', 0)|format_number(2) }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="19" class="text-center py-5">
+                                <div class="no-data">
+                                    <div class="no-data-icon">
+                                        <i class="fas fa-money-bill-wave"></i>
+                                    </div>
+                                    <h5 style="color: var(--text-light); margin: 15px 0 10px;">暂无媒介成本数据</h5>
+                                    <p style="color: var(--text-gray);">请运行成本分析获取数据</p>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+        {% if fixed_media_cost %}
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <div class="text-muted">
+                显示 {{ fixed_media_cost|length }} 条记录
+            </div>
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item disabled"><a class="page-link" href="#">上一页</a></li>
+                    <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                    <li class="page-item disabled"><a class="page-link" href="#">下一页</a></li>
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+
+       <!-- 定档媒介返点分析表格 -->
+    <div id="fixed_media_rebateTable" class="table-content" style="display: none;">
+        <div class="table-responsive">
+            <table class="table table-advanced table-hover">
+                <thead>
+                    <tr>
+                        <th>定档媒介</th>
+                        <th>定档达人数</th>
+                        <th>所属小组</th>
+                        <th>平均返点比例(%)</th>
+                        <th>返点比例最大值(%)</th>
+                        <th>返点比例最小值(%)</th>
+                        <th>返点比例中位数(%)</th>
+                        <th>返点表现评估</th>
+                        <th>返点优化建议</th>
+                        <th>总返点金额(元)</th>
+                        <th>平均返点金额(元)</th>
+                        <th>返点金额最大值(元)</th>
+                        <th>返点金额最小值(元)</th>
+                        <th>返点金额中位数(元)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if fixed_media_rebate %}
+                        {% for row in fixed_media_rebate %}
+                        <tr>
+                            <td class="fw-medium">{{ row.get('定档媒介', '') }}</td>
+                            <td>{{ row.get('定档达人数', 0) }}</td>
+                            <td>
+                                <span class="group-badge {% if row.get('所属小组', '') == '家居媒介组' %}badge-blue{% elif row.get('所属小组', '') == '快消媒介组' %}badge-green{% elif row.get('所属小组', '') == '数码媒介组' %}badge-orange{% else %}badge-gray{% endif %}">
+                                    {{ row.get('所属小组', '') }}
+                                </span>
+                            </td>
+                            <td>
+                                {% set rebate_rate = row.get('平均返点比例(%)', '0%') %}
+                                <span class="{% if rebate_rate is string %}{% if rebate_rate|replace('%','')|float >= 15 %}text-success{% elif rebate_rate|replace('%','')|float >= 8 %}text-warning{% else %}text-danger{% endif %}{% endif %}">
+                                    {{ rebate_rate }}
+                                </span>
+                            </td>
+                            <td>{{ row.get('返点比例最大值(%)', '0%') }}</td>
+                            <td>{{ row.get('返点比例最小值(%)', '0%') }}</td>
+                            <td>{{ row.get('返点比例中位数(%)', '0%') }}</td>
+                            <td>
+                                {% set performance = row.get('返点表现评估', '待改进') %}
+                                <span class="cost-badge {% if performance in ['表现卓越','表现优秀'] %}badge-excellent{% elif performance == '表现良好' %}badge-good{% elif performance == '表现一般' %}badge-average{% else %}badge-poor{% endif %}">
+                                    {{ performance }}
+                                </span>
+                            </td>
+                            <td class="small">{{ row.get('返点优化建议', '') }}</td>
+                            <td class="text-success fw-bold">{{ row.get('总返点金额(元)', 0)|format_number(2) }}</td>
+                            <td>{{ row.get('平均返点金额(元)', 0)|format_number(2) }}</td>
+                            <td>{{ row.get('返点金额最大值(元)', 0)|format_number(2) }}</td>
+                            <td>{{ row.get('返点金额最小值(元)', 0)|format_number(2) }}</td>
+                            <td>{{ row.get('返点金额中位数(元)', 0)|format_number(2) }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="14" class="text-center py-5">
+                                <div class="no-data">
+                                    <div class="no-data-icon">
+                                        <i class="fas fa-percentage"></i>
+                                    </div>
+                                    <h5 style="color: var(--text-light); margin: 15px 0 10px;">暂无返点分析数据</h5>
+                                    <p style="color: var(--text-gray);">请运行成本分析获取数据</p>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+        {% if fixed_media_rebate %}
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <div class="text-muted">
+                显示 {{ fixed_media_rebate|length }} 条记录
+            </div>
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item disabled"><a class="page-link" href="#">上一页</a></li>
+                    <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                    <li class="page-item disabled"><a class="page-link" href="#">下一页</a></li>
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 定档媒介效果分析表格 -->
+    <div id="fixed_media_performanceTable" class="table-content" style="display: none;">
+        <div class="table-responsive">
+            <table class="table table-advanced table-hover">
+                <thead>
+                    <tr>
+                        <th>定档媒介</th>
+                        <th>定档达人数</th>
+                        <th>所属小组</th>
+                        <th>总互动量</th>
+                        <th>平均互动量</th>
+                        <th>总阅读量</th>
+                        <th>平均阅读量</th>
+                        <th>效果评估</th>
+                        <th>效果建议</th>
+                        <th>平均CPE</th>
+                        <th>CPE评估</th>
+                        <th>每元互动量</th>
+                        <th>成本效益评估</th>
+                        <th>平均CPM</th>
+                        <th>CPM评估</th>
+                        <th>性价比评估</th>
+                        <th>平均互动率(%)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if fixed_media_performance %}
+                        {% for row in fixed_media_performance %}
+                        <tr>
+                            <td class="fw-medium">{{ row.get('定档媒介', '') }}</td>
+                            <td>{{ row.get('定档达人数', 0) }}</td>
+                            <td>
+                                <span class="group-badge {% if row.get('所属小组', '') == '家居媒介组' %}badge-blue{% elif row.get('所属小组', '') == '快消媒介组' %}badge-green{% elif row.get('所属小组', '') == '数码媒介组' %}badge-orange{% else %}badge-gray{% endif %}">
+                                    {{ row.get('所属小组', '') }}
+                                </span>
+                            </td>
+                            <td>{{ row.get('总互动量', 0)|format_number(0) }}</td>
+                            <td>{{ row.get('平均互动量', 0)|format_number(0) }}</td>
+                            <td>{{ row.get('总阅读量', 0)|format_number(0) }}</td>
+                            <td>{{ row.get('平均阅读量', 0)|format_number(0) }}</td>
+                            <td>
+                                {% set effect = row.get('效果评估', '效果较差') %}
+                                <span class="cost-badge {% if effect in ['效果卓越','效果优秀'] %}badge-excellent{% elif effect == '效果良好' %}badge-good{% elif effect == '效果一般' %}badge-average{% else %}badge-poor{% endif %}">
+                                    {{ effect }}
+                                </span>
+                            </td>
+                            <td class="small">{{ row.get('效果建议', '') }}</td>
+                            <td>
+                                {% set cpe = row.get('平均CPE', 0) %}
+                                <span class="{% if cpe <= 5 %}text-success{% elif cpe <= 10 %}text-warning{% else %}text-danger{% endif %}">
+                                    {{ cpe|format_number(2) }}
+                                </span>
+                            </td>
+                            <td>
+                                {% set cpe_eval = row.get('CPE评估', '过高') %}
+                                <span class="cost-badge {% if cpe_eval == '优秀' %}badge-excellent{% elif cpe_eval == '良好' %}badge-good{% elif cpe_eval == '一般' %}badge-average{% else %}badge-poor{% endif %}">
+                                    {{ cpe_eval }}
+                                </span>
+                            </td>
+                            <td>{{ row.get('每元互动量', 0)|format_number(2) }}</td>
+                            <td>
+                                {% set benefit = row.get('成本效益评估', '效益较差') %}
+                                <span class="cost-badge {% if benefit in ['效益卓越','效益良好'] %}badge-excellent{% elif benefit == '效益一般' %}badge-average{% else %}badge-poor{% endif %}">
+                                    {{ benefit }}
+                                </span>
+                            </td>
+                            <td>
+                                {% set cpm = row.get('平均CPM', 0) %}
+                                <span class="{% if cpm <= 50 %}text-success{% elif cpm <= 100 %}text-warning{% else %}text-danger{% endif %}">
+                                    {{ cpm|format_number(2) }}
+                                </span>
+                            </td>
+                            <td>
+                                {% set cpm_eval = row.get('CPM评估', '过高') %}
+                                <span class="cost-badge {% if cpm_eval == '优秀' %}badge-excellent{% elif cpm_eval == '良好' %}badge-good{% elif cpm_eval == '一般' %}badge-average{% else %}badge-poor{% endif %}">
+                                    {{ cpm_eval }}
+                                </span>
+                            </td>
+                            <td>
+                                {% set cost_performance = row.get('性价比评估', '性价比较低') %}
+                                <span class="cost-badge {% if cost_performance == '高性价比' %}badge-excellent{% elif cost_performance == '性价比较好' %}badge-good{% elif cost_performance == '性价比一般' %}badge-average{% else %}badge-poor{% endif %}">
+                                    {{ cost_performance }}
+                                </span>
+                            </td>
+                            <td>{{ format_percentage(row.get('平均互动率(%)', '0%')) }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="17" class="text-center py-5">
+                                <div class="no-data">
+                                    <div class="no-data-icon">
+                                        <i class="fas fa-chart-line"></i>
+                                    </div>
+                                    <h5 style="color: var(--text-light); margin: 15px 0 10px;">暂无效果分析数据</h5>
+                                    <p style="color: var(--text-gray);">请运行成本分析获取数据</p>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+        {% if fixed_media_performance %}
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <div class="text-muted">
+                显示 {{ fixed_media_performance|length }} 条记录
+            </div>
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item disabled"><a class="page-link" href="#">上一页</a></li>
+                    <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                    <li class="page-item disabled"><a class="page-link" href="#">下一页</a></li>
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 定档媒介达人量级分析表格 -->
+    <div id="fixed_media_levelTable" class="table-content" style="display: none;">
+        <div class="table-responsive">
+            <table class="table table-advanced table-hover">
+                <thead>
+                    <tr>
+                        <th>定档媒介</th>
+                        <th>达人量级</th>
+                        <th>达人数</th>
+                        <th>所属小组</th>
+                        <th>总成本(元)</th>
+                        <th>平均成本(元)</th>
+                        <th>总返点金额(元)</th>
+                        <th>平均返点金额(元)</th>
+                        <th>平均返点比例(%)</th>
+                        <th>总互动量</th>
+                        <th>平均互动量</th>
+                        <th>总阅读量</th>
+                        <th>平均阅读量</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if fixed_media_level %}
+                        {% for row in fixed_media_level %}
+                        <tr>
+                            <td class="fw-medium">{{ row.get('定档媒介', '') }}</td>
+                            <td>
+                                <span class="cost-badge {% if row.get('达人量级', '') in ['S级','A级'] %}badge-excellent{% elif row.get('达人量级', '') in ['B级','C级'] %}badge-good{% else %}badge-average{% endif %}">
+                                    {{ row.get('达人量级', '未知') }}
+                                </span>
+                            </td>
+                            <td>{{ row.get('达人数', 0) }}</td>
+                            <td>
+                                <span class="group-badge {% if row.get('所属小组', '') == '家居媒介组' %}badge-blue{% elif row.get('所属小组', '') == '快消媒介组' %}badge-green{% elif row.get('所属小组', '') == '数码媒介组' %}badge-orange{% else %}badge-gray{% endif %}">
+                                    {{ row.get('所属小组', '') }}
+                                </span>
+                            </td>
+                            <td>{{ row.get('总成本(元)', 0)|format_number(2) }}</td>
+                            <td>{{ row.get('平均成本(元)', 0)|format_number(2) }}</td>
+                            <td class="text-success">{{ row.get('总返点金额(元)', 0)|format_number(2) }}</td>
+                            <td>{{ row.get('平均返点金额(元)', 0)|format_number(2) }}</td>
+                            <td>
+                                {% set rebate_rate = row.get('平均返点比例(%)', '0%') %}
+                                <span class="{% if rebate_rate is string %}{% if rebate_rate|replace('%','')|float >= 15 %}text-success{% elif rebate_rate|replace('%','')|float >= 8 %}text-warning{% else %}text-danger{% endif %}{% endif %}">
+                                    {{ format_percentage(rebate_rate) }}
+                                </span>
+                            </td>
+                            <td>{{ row.get('总互动量', 0)|format_number(0) }}</td>
+                            <td>{{ row.get('平均互动量', 0)|format_number(0) }}</td>
+                            <td>{{ row.get('总阅读量', 0)|format_number(0) }}</td>
+                            <td>{{ row.get('平均阅读量', 0)|format_number(0) }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="13" class="text-center py-5">
+                                <div class="no-data">
+                                    <div class="no-data-icon">
+                                        <i class="fas fa-star"></i>
+                                    </div>
+                                    <h5 style="color: var(--text-light); margin: 15px 0 10px;">暂无达人量级数据</h5>
+                                    <p style="color: var(--text-gray);">请运行成本分析获取数据</p>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+        {% if fixed_media_level %}
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <div class="text-muted">
+                显示 {{ fixed_media_level|length }} 条记录
+            </div>
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item disabled"><a class="page-link" href="#">上一页</a></li>
+                    <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                    <li class="page-item disabled"><a class="page-link" href="#">下一页</a></li>
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 定档媒介综合分析表格 -->
+    <div id="fixed_media_comprehensiveTable" class="table-content" style="display: none;">
+        <div class="table-responsive">
+            <table class="table table-advanced table-hover">
+                <thead>
+                    <tr>
+                        <th>定档媒介</th>
+                        <th>定档达人数</th>
+                        <th>合作项目数</th>
+                        <th>笔记类型分布</th>
+                        <th>所属小组</th>
+                        <th>总成本(元)</th>
+                        <th>平均成本(元)</th>
+                        <th>总返点金额(元)</th>
+                        <th>平均返点金额(元)</th>
+                        <th>平均返点比例(%)</th>
+                        <th>总互动量</th>
+                        <th>平均互动量</th>
+                        <th>综合得分</th>
+                        <th>综合评价</th>
+                        <th>合作建议</th>
+                        <th>平均CPE</th>
+                        <th>每元互动量</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if fixed_media_comprehensive %}
+                        {% for row in fixed_media_comprehensive %}
+                        <tr>
+                            <td class="fw-medium">{{ row.get('定档媒介', '') }}</td>
+                            <td>{{ row.get('定档达人数', 0) }}</td>
+                            <td>{{ row.get('合作项目数', 0) }}</td>
+                            <td>{{ row.get('笔记类型分布', '') }}</td>
+                            <td>
+                                <span class="group-badge {% if row.get('所属小组', '') == '家居媒介组' %}badge-blue{% elif row.get('所属小组', '') == '快消媒介组' %}badge-green{% elif row.get('所属小组', '') == '数码媒介组' %}badge-orange{% else %}badge-gray{% endif %}">
+                                    {{ row.get('所属小组', '') }}
+                                </span>
+                            </td>
+                            <td class="fw-bold">{{ row.get('总成本(元)', 0)|format_number(2) }}</td>
+                            <td>{{ row.get('平均成本(元)', 0)|format_number(2) }}</td>
+                            <td class="text-success">{{ row.get('总返点金额(元)', 0)|format_number(2) }}</td>
+                            <td>{{ row.get('平均返点金额(元)', 0)|format_number(2) }}</td>
+                            <td>
+                                {% set rebate_rate = row.get('平均返点比例(%)', '0%') %}
+                                <span class="{% if rebate_rate is string %}{% if rebate_rate|replace('%','')|float >= 15 %}text-success{% elif rebate_rate|replace('%','')|float >= 8 %}text-warning{% else %}text-danger{% endif %}{% endif %}">
+                                    {{ format_percentage(rebate_rate) }}
+                                </span>
+                            </td>
+                            <td>{{ row.get('总互动量', 0)|format_number(0) }}</td>
+                            <td>{{ row.get('平均互动量', 0)|format_number(0) }}</td>
+                            <td>
+                                {% set score = row.get('综合得分', 0) %}
+                                <span class="{% if score >= 80 %}text-success{% elif score >= 60 %}text-warning{% else %}text-danger{% endif %} fw-bold">
+                                    {{ score|format_number(0) }}
+                                </span>
+                            </td>
+                            <td>
+                                {% set grade = row.get('综合评价', 'E级（较差）') %}
+                                <span class="cost-badge {% if 'S级' in grade %}badge-excellent{% elif 'A级' in grade %}badge-good{% elif 'B级' in grade %}badge-average{% elif 'C级' in grade %}badge-average{% else %}badge-poor{% endif %}">
+                                    {{ grade }}
+                                </span>
+                            </td>
+                            <td class="small">{{ row.get('合作建议', '') }}</td>
+                            <td>{{ row.get('平均CPE', 0)|format_number(2) }}</td>
+                            <td>{{ row.get('每元互动量', 0)|format_number(2) }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="17" class="text-center py-5">
+                                <div class="no-data">
+                                    <div class="no-data-icon">
+                                        <i class="fas fa-chart-bar"></i>
+                                    </div>
+                                    <h5 style="color: var(--text-light); margin: 15px 0 10px;">暂无综合分析数据</h5>
+                                    <p style="color: var(--text-gray);">请运行成本分析获取数据</p>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+        {% if fixed_media_comprehensive %}
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <div class="text-muted">
+                显示 {{ fixed_media_comprehensive|length }} 条记录
+            </div>
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item disabled"><a class="page-link" href="#">上一页</a></li>
+                    <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                    <li class="page-item disabled"><a class="page-link" href="#">下一页</a></li>
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentTable = 'media_group_workload';
+
+// 显示指定表格
+function showTable(tableId) {
+    // 更新标签页状态
+    document.querySelectorAll('.table-tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    event.target.classList.add('active');
+
+    // 隐藏所有表格
+    document.querySelectorAll('.table-content').forEach(content => {
+        content.style.display = 'none';
+    });
+
+    // 显示选中的表格
+    document.getElementById(tableId + 'Table').style.display = 'block';
+    currentTable = tableId;
+
+    // 更新搜索框占位符
+    updateSearchPlaceholder();
+}
+
+// 更新搜索框占位符
+function updateSearchPlaceholder() {
+    const searchInput = document.getElementById('searchInput');
+    if (!searchInput) return;
+
+    const placeholders = {
+        'media_group_workload': '搜索小组名称...',
+        'fixed_media_workload': '搜索媒介名称或小组...',
+        'fixed_media_cost': '搜索媒介名称或小组...',
+        'fixed_media_rebate': '搜索媒介名称或小组...',
+        'fixed_media_performance': '搜索媒介名称或小组...',
+        'fixed_media_level': '搜索媒介名称、小组或达人量级...',
+        'fixed_media_comprehensive': '搜索媒介名称、小组或综合评价...'
+    };
+
+    searchInput.placeholder = placeholders[currentTable] || '搜索...';
+    searchInput.value = ''; // 清空搜索框
+}
+
+// 表格搜索功能
+function searchTable() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const currentTableElement = document.getElementById(currentTable + 'Table');
+
+    if (!currentTableElement) return;
+
+    const tableRows = currentTableElement.querySelectorAll('tbody tr');
+    let visibleCount = 0;
+
+    tableRows.forEach(row => {
+        const rowText = row.textContent.toLowerCase();
+        const isVisible = rowText.includes(searchTerm);
+        row.style.display = isVisible ? '' : 'none';
+
+        if (isVisible) visibleCount++;
+    });
+
+    // 显示搜索结果计数
+    showSearchResultCount(visibleCount, tableRows.length);
+}
+
+function showSearchResultCount(visible, total) {
+    // 移除现有的结果计数
+    const existingCount = document.getElementById('searchResultCount');
+    if (existingCount) {
+        existingCount.remove();
+    }
+
+    if (document.getElementById('searchInput').value.trim() === '') return;
+
+    const searchContainer = document.getElementById('searchContainer');
+    const countElement = document.createElement('div');
+    countElement.id = 'searchResultCount';
+    countElement.className = 'text-muted small ms-2';
+    countElement.textContent = `找到 ${visible} / ${total} 条记录`;
+
+    searchContainer.appendChild(countElement);
+}
+
+// 重置搜索
+function resetSearch() {
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.value = '';
+    }
+
+    // 移除搜索结果计数
+    const existingCount = document.getElementById('searchResultCount');
+    if (existingCount) {
+        existingCount.remove();
+    }
+
+    // 显示所有行
+    const currentTableElement = document.getElementById(currentTable + 'Table');
+    if (currentTableElement) {
+        const tableRows = currentTableElement.querySelectorAll('tbody tr');
+        tableRows.forEach(row => {
+            row.style.display = '';
+        });
+    }
+}
+
+// ✅ 核心修复：下载指定工作表
+function downloadSheet(sheetType) {
+    // 映射前端sheetType到后端sheet_key
+    const sheetMapping = {
+        'media_group_workload': 'media_group_workload',
+        'fixed_media_workload': 'fixed_media_workload',
+        'fixed_media_cost': 'fixed_media_cost',
+        'fixed_media_rebate': 'fixed_media_rebate',
+        'fixed_media_performance': 'fixed_media_performance',
+        'fixed_media_level': 'fixed_media_level',
+        'fixed_media_comprehensive': 'fixed_media_comprehensive'
+    };
+
+    const sheetKey = sheetMapping[sheetType];
+    if (!sheetKey) {
+        alert('不支持的表格类型');
+        return;
+    }
+
+    // 获取当前分析ID
+    const urlSegments = window.location.pathname.split('/');
+    let analysisId = urlSegments[urlSegments.length - 1];
+
+    // 如果analysisId是latest，尝试从URL参数获取
+    if (analysisId === 'latest') {
+        const urlParams = new URLSearchParams(window.location.search);
+        analysisId = urlParams.get('analysis_id') || analysisId;
+    }
+
+    // 构建下载URL - 确保使用正确的参数名 sheet_key
+    const downloadUrl = `/download_cost_sheet/${sheetKey}/${analysisId}`;
+
+    // 使用Fetch API下载文件
+    fetch(downloadUrl)
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(data => {
+                    throw new Error(data.error || '下载失败');
+                });
+            }
+            return response.blob();
+        })
+        .then(blob => {
+            // 创建下载链接
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+
+            // 设置文件名
+            const timestamp = new Date().toISOString().split('T')[0];
+            const sheetNameMap = {
+                'media_group_workload': '媒介小组工作量分析',
+                'fixed_media_workload': '定档媒介工作量分析',
+                'fixed_media_cost': '定档媒介成本分析',
+                'fixed_media_rebate': '定档媒介返点分析',
+                'fixed_media_performance': '定档媒介效果分析',
+                'fixed_media_level': '定档媒介达人量级分析',
+                'fixed_media_comprehensive': '定档媒介综合分析'
+            };
+            const sheetName = sheetNameMap[sheetType] || sheetType;
+            const filename = `${sheetName}_${analysisId}_${timestamp}.xlsx`;
+            a.download = filename;
+
+            // 触发下载
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        })
+        .catch(error => {
+            console.error('下载失败:', error);
+            alert(`下载失败: ${error.message}`);
+        });
+}
+
+// ✅ 新增：下载当前显示的表格
+function downloadCurrentTable() {
+    // 定义表格ID到工作表名称的映射
+    const tableMap = {
+        'media_group_workload': 'media_group_workload',
+        'fixed_media_workload': 'fixed_media_workload',
+        'fixed_media_cost': 'fixed_media_cost',
+        'fixed_media_rebate': 'fixed_media_rebate',
+        'fixed_media_performance': 'fixed_media_performance',
+        'fixed_media_level': 'fixed_media_level',
+        'fixed_media_comprehensive': 'fixed_media_comprehensive'
+    };
+
+    const sheetType = tableMap[currentTable];
+    if (!sheetType) {
+        alert('无法识别当前表格类型');
+        return;
+    }
+
+    downloadSheet(sheetType);
+}
+
+// 切换视图功能
+function toggleDataView() {
+    alert('当前显示表格视图，如果需要图表视图，请添加相关图表组件');
+}
+
+// 初始化页面
+document.addEventListener('DOMContentLoaded', function() {
+    // 初始化搜索框
+    updateSearchPlaceholder();
+
+    // 为搜索框添加回车事件
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.addEventListener('keyup', function(event) {
+            if (event.key === 'Enter') {
+                searchTable();
+            }
+        });
+    }
+
+    // ✅ 为所有导出按钮添加事件监听
+    document.querySelectorAll('.export-mini-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            if (this.textContent.includes('导出当前表格')) {
+                downloadCurrentTable();
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

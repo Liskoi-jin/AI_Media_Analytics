@@ -1,0 +1,1186 @@
+{% extends "base.html" %}
+
+{% block title %}报告下载 - AI媒介自动化审计分析系统{% endblock %}
+{% block page_title %}报告下载中心{% endblock %}
+{% block page_subtitle %}下载您需要的分析报告和数据文件{% endblock %}
+{% block breadcrumb %}
+    <li class="breadcrumb-item active" style="color: var(--text-light);"><i class="fas fa-download me-1"></i>报告下载</li>
+{% endblock %}
+
+{% block page_actions %}
+<div class="d-flex gap-2">
+    <button class="btn btn-outline-primary" onclick="refreshDownloads()">
+        <i class="fas fa-sync-alt me-1"></i> 刷新列表
+    </button>
+    <button class="btn btn-advanced" onclick="downloadAll()">
+        <i class="fas fa-file-archive me-1"></i> 打包下载
+    </button>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .download-section {
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: 16px;
+        padding: 25px;
+        margin-bottom: 25px;
+        transition: var(--transition);
+    }
+
+    .download-section:hover {
+        border-color: var(--primary);
+        box-shadow: var(--shadow-hover);
+    }
+
+    .section-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 25px;
+        padding-bottom: 20px;
+        border-bottom: 2px solid var(--card-border);
+    }
+
+    .section-icon {
+        width: 50px;
+        height: 50px;
+        background: rgba(99, 102, 241, 0.15);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 15px;
+        border: 1px solid rgba(99, 102, 241, 0.25);
+    }
+
+    .section-icon i {
+        color: var(--primary);
+        font-size: 1.3rem;
+    }
+
+    .section-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--text-light);
+        margin: 0;
+    }
+
+    .section-subtitle {
+        color: var(--text-gray);
+        font-size: 0.95rem;
+        margin-top: 5px;
+    }
+
+    .analysis-list {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .analysis-item {
+        background: rgba(30, 41, 59, 0.5);
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid var(--card-border);
+        transition: var(--transition);
+        cursor: pointer;
+    }
+
+    .analysis-item:hover {
+        border-color: var(--primary);
+        transform: translateX(5px);
+        background: rgba(99, 102, 241, 0.1);
+    }
+
+    .analysis-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+
+    .analysis-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--text-light);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .analysis-status {
+        font-size: 0.85rem;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-weight: 500;
+    }
+
+    .status-completed {
+        background: rgba(16, 185, 129, 0.2);
+        color: #10b981;
+        border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .status-processing {
+        background: rgba(245, 158, 11, 0.2);
+        color: #f59e0b;
+        border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .status-failed {
+        background: rgba(239, 68, 68, 0.2);
+        color: #ef4444;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .analysis-info {
+        display: flex;
+        gap: 30px;
+        margin-bottom: 15px;
+        flex-wrap: wrap;
+    }
+
+    .info-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .info-label {
+        color: var(--text-gray);
+        font-size: 0.9rem;
+    }
+
+    .info-value {
+        font-weight: 500;
+        color: var(--text-light);
+        font-size: 0.95rem;
+    }
+
+    .analysis-files {
+        margin-top: 15px;
+        padding-top: 15px;
+        border-top: 1px solid var(--card-border);
+    }
+
+    .files-title {
+        font-size: 0.9rem;
+        color: var(--text-gray);
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .files-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 10px;
+    }
+
+    .file-item {
+        background: rgba(30, 41, 59, 0.3);
+        border-radius: 8px;
+        padding: 12px;
+        border: 1px solid var(--card-border);
+        transition: var(--transition);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .file-item:hover {
+        background: rgba(99, 102, 241, 0.1);
+        border-color: var(--primary);
+    }
+
+    .file-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .icon-excel {
+        background: rgba(16, 185, 129, 0.15);
+        border: 1px solid rgba(16, 185, 129, 0.25);
+    }
+
+    .icon-excel i {
+        color: #10b981;
+    }
+
+    .icon-csv {
+        background: rgba(59, 130, 246, 0.15);
+        border: 1px solid rgba(59, 130, 246, 0.25);
+    }
+
+    .icon-csv i {
+        color: #3b82f6;
+    }
+
+    .icon-pdf {
+        background: rgba(239, 68, 68, 0.15);
+        border: 1px solid rgba(239, 68, 68, 0.25);
+    }
+
+    .icon-pdf i {
+        color: #ef4444;
+    }
+
+    .icon-json {
+        background: rgba(245, 158, 11, 0.15);
+        border: 1px solid rgba(245, 158, 11, 0.25);
+    }
+
+    .icon-json i {
+        color: #f59e0b;
+    }
+
+    .file-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .file-name {
+        font-weight: 500;
+        color: var(--text-light);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 0.95rem;
+    }
+
+    .file-meta {
+        display: flex;
+        gap: 10px;
+        font-size: 0.8rem;
+        color: var(--text-gray);
+        margin-top: 4px;
+    }
+
+    .file-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .file-action-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        background: rgba(30, 41, 59, 0.5);
+        border: 1px solid var(--card-border);
+        color: var(--text-gray);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: var(--transition);
+        cursor: pointer;
+    }
+
+    .file-action-btn:hover {
+        background: rgba(99, 102, 241, 0.2);
+        color: var(--primary);
+        border-color: var(--primary);
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--text-gray);
+    }
+
+    .empty-icon {
+        width: 100px;
+        height: 100px;
+        background: rgba(99, 102, 241, 0.1);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 20px;
+        border: 2px solid rgba(99, 102, 241, 0.2);
+    }
+
+    .empty-icon i {
+        color: var(--primary);
+        font-size: 2.5rem;
+    }
+
+    .filter-buttons {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 25px;
+        flex-wrap: wrap;
+    }
+
+    .filter-btn {
+        padding: 8px 20px;
+        background: rgba(30, 41, 59, 0.5);
+        border: 1px solid var(--card-border);
+        border-radius: 8px;
+        color: var(--text-gray);
+        font-size: 0.9rem;
+        transition: var(--transition);
+        cursor: pointer;
+    }
+
+    .filter-btn:hover {
+        background: rgba(99, 102, 241, 0.1);
+        color: var(--primary);
+        border-color: var(--primary);
+    }
+
+    .filter-btn.active {
+        background: rgba(99, 102, 241, 0.2);
+        color: var(--primary);
+        border-color: var(--primary);
+        font-weight: 500;
+    }
+
+    .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        margin-top: 30px;
+        padding-top: 20px;
+        border-top: 1px solid var(--card-border);
+    }
+
+    .page-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        background: rgba(30, 41, 59, 0.5);
+        border: 1px solid var(--card-border);
+        color: var(--text-gray);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: var(--transition);
+        cursor: pointer;
+    }
+
+    .page-btn:hover {
+        background: rgba(99, 102, 241, 0.1);
+        color: var(--primary);
+    }
+
+    .page-btn.active {
+        background: var(--gradient-primary);
+        color: white;
+        border-color: transparent;
+    }
+
+    .page-info {
+        color: var(--text-gray);
+        font-size: 0.9rem;
+    }
+
+    .quick-actions {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-bottom: 25px;
+    }
+
+    .quick-action-card {
+        background: rgba(30, 41, 59, 0.5);
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid var(--card-border);
+        transition: var(--transition);
+        cursor: pointer;
+        text-align: center;
+    }
+
+    .quick-action-card:hover {
+        border-color: var(--primary);
+        transform: translateY(-5px);
+        background: rgba(99, 102, 241, 0.1);
+    }
+
+    .quick-action-icon {
+        width: 60px;
+        height: 60px;
+        background: rgba(99, 102, 241, 0.15);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 15px;
+        border: 1px solid rgba(99, 102, 241, 0.25);
+    }
+
+    .quick-action-icon i {
+        color: var(--primary);
+        font-size: 1.5rem;
+    }
+
+    .quick-action-title {
+        font-weight: 600;
+        color: var(--text-light);
+        margin-bottom: 8px;
+    }
+
+    .quick-action-desc {
+        color: var(--text-gray);
+        font-size: 0.9rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- 快速操作区域 -->
+<div class="download-section fade-in">
+    <div class="section-header">
+        <div class="section-icon">
+            <i class="fas fa-bolt"></i>
+        </div>
+        <div>
+            <h2 class="section-title">快速下载</h2>
+            <div class="section-subtitle">快速获取常用报告和数据文件</div>
+        </div>
+    </div>
+
+    <div class="quick-actions">
+        <div class="quick-action-card" onclick="window.location.href='{{ url_for('download_report', report_type='full', analysis_id='latest') }}'">
+            <div class="quick-action-icon">
+                <i class="fas fa-file-excel"></i>
+            </div>
+            <div class="quick-action-title">完整分析报告</div>
+            <div class="quick-action-desc">包含全部分析模块的Excel报告</div>
+        </div>
+
+        <div class="quick-action-card" onclick="window.location.href='{{ url_for('download_files', analysis_id='latest') }}'">
+            <div class="quick-action-icon">
+                <i class="fas fa-file-archive"></i>
+            </div>
+            <div class="quick-action-title">原始数据打包</div>
+            <div class="quick-action-desc">下载所有上传的原始数据文件</div>
+        </div>
+
+        <div class="quick-action-card" onclick="exportAsJSON()">
+            <div class="quick-action-icon">
+                <i class="fas fa-code"></i>
+            </div>
+            <div class="quick-action-title">JSON数据导出</div>
+            <div class="quick-action-desc">导出分析结果为JSON格式</div>
+        </div>
+
+        <div class="quick-action-card" onclick="exportAsCSV()">
+            <div class="quick-action-icon">
+                <i class="fas fa-table"></i>
+            </div>
+            <div class="quick-action-title">CSV数据导出</div>
+            <div class="quick-action-desc">导出详细数据为CSV格式</div>
+        </div>
+    </div>
+</div>
+
+<!-- 历史分析列表 -->
+<div class="download-section fade-in" style="animation-delay: 0.1s;">
+    <div class="section-header">
+        <div class="section-icon">
+            <i class="fas fa-history"></i>
+        </div>
+        <div>
+            <h2 class="section-title">历史分析记录</h2>
+            <div class="section-subtitle">查看和下载历史分析结果</div>
+        </div>
+    </div>
+
+    <!-- 筛选按钮 -->
+    <div class="filter-buttons">
+        <button class="filter-btn active" onclick="filterAnalyses('all')">
+            <i class="fas fa-filter me-1"></i> 全部记录
+        </button>
+        <button class="filter-btn" onclick="filterAnalyses('today')">
+            <i class="fas fa-calendar-day me-1"></i> 今日记录
+        </button>
+        <button class="filter-btn" onclick="filterAnalyses('week')">
+            <i class="fas fa-calendar-week me-1"></i> 本周记录
+        </button>
+        <button class="filter-btn" onclick="filterAnalyses('completed')">
+            <i class="fas fa-check-circle me-1"></i> 已完成
+        </button>
+        <button class="filter-btn" onclick="filterAnalyses('excel')">
+            <i class="fas fa-file-excel me-1"></i> Excel报告
+        </button>
+    </div>
+
+    <!-- 分析列表 -->
+    <div class="analysis-list">
+        <!-- 示例分析项目 1 -->
+        <div class="analysis-item">
+            <div class="analysis-header">
+                <div class="analysis-title">
+                    <i class="fas fa-chart-pie"></i>
+                    2024年第12周完整分析
+                </div>
+                <span class="analysis-status status-completed">
+                    <i class="fas fa-check-circle me-1"></i> 已完成
+                </span>
+            </div>
+
+            <div class="analysis-info">
+                <div class="info-item">
+                    <i class="fas fa-calendar"></i>
+                    <div>
+                        <div class="info-label">分析时间</div>
+                        <div class="info-value">2024-03-25 14:30:45</div>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <i class="fas fa-tags"></i>
+                    <div>
+                        <div class="info-label">分析类目</div>
+                        <div class="info-value">2024年第12周</div>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <i class="fas fa-users"></i>
+                    <div>
+                        <div class="info-label">分析小组</div>
+                        <div class="info-value">家居、快消、数码</div>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <i class="fas fa-database"></i>
+                    <div>
+                        <div class="info-label">数据量</div>
+                        <div class="info-value">2,548条记录</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="analysis-files">
+                <div class="files-title">
+                    <i class="fas fa-file-alt"></i>
+                    可下载文件
+                </div>
+                <div class="files-grid">
+                    <div class="file-item">
+                        <div class="file-icon icon-excel">
+                            <i class="fas fa-file-excel"></i>
+                        </div>
+                        <div class="file-info">
+                            <div class="file-name">Media_Analysis_Report_20240325_143045.xlsx</div>
+                            <div class="file-meta">
+                                <span><i class="fas fa-file"></i> Excel</span>
+                                <span><i class="fas fa-weight-hanging"></i> 2.8 MB</span>
+                            </div>
+                        </div>
+                        <div class="file-actions">
+                            <button class="file-action-btn" title="预览" onclick="previewFile('excel')">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="file-action-btn" title="下载" onclick="downloadFile('excel', 'Media_Analysis_Report_20240325_143045.xlsx')">
+                                <i class="fas fa-download"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="file-item">
+                        <div class="file-icon icon-csv">
+                            <i class="fas fa-file-csv"></i>
+                        </div>
+                        <div class="file-info">
+                            <div class="file-name">workload_data_20240325_143045.csv</div>
+                            <div class="file-meta">
+                                <span><i class="fas fa-file"></i> CSV</span>
+                                <span><i class="fas fa-weight-hanging"></i> 1.2 MB</span>
+                            </div>
+                        </div>
+                        <div class="file-actions">
+                            <button class="file-action-btn" title="预览" onclick="previewFile('csv')">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="file-action-btn" title="下载" onclick="downloadFile('csv', 'workload_data_20240325_143045.csv')">
+                                <i class="fas fa-download"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="file-item">
+                        <div class="file-icon icon-json">
+                            <i class="fas fa-code"></i>
+                        </div>
+                        <div class="file-info">
+                            <div class="file-name">analysis_summary_20240325_143045.json</div>
+                            <div class="file-meta">
+                                <span><i class="fas fa-file"></i> JSON</span>
+                                <span><i class="fas fa-weight-hanging"></i> 456 KB</span>
+                            </div>
+                        </div>
+                        <div class="file-actions">
+                            <button class="file-action-btn" title="预览" onclick="previewFile('json')">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="file-action-btn" title="下载" onclick="downloadFile('json', 'analysis_summary_20240325_143045.json')">
+                                <i class="fas fa-download"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 示例分析项目 2 -->
+        <div class="analysis-item">
+            <div class="analysis-header">
+                <div class="analysis-title">
+                    <i class="fas fa-chart-bar"></i>
+                    2024年3月家居媒介组专项分析
+                </div>
+                <span class="analysis-status status-completed">
+                    <i class="fas fa-check-circle me-1"></i> 已完成
+                </span>
+            </div>
+
+            <div class="analysis-info">
+                <div class="info-item">
+                    <i class="fas fa-calendar"></i>
+                    <div>
+                        <div class="info-label">分析时间</div>
+                        <div class="info-value">2024-03-18 09:15:22</div>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <i class="fas fa-tags"></i>
+                    <div>
+                        <div class="info-label">分析类目</div>
+                        <div class="info-value">2024年3月</div>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <i class="fas fa-users"></i>
+                    <div>
+                        <div class="info-label">分析小组</div>
+                        <div class="info-value">家居媒介组</div>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <i class="fas fa-database"></i>
+                    <div>
+                        <div class="info-label">数据量</div>
+                        <div class="info-value">1,248条记录</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="analysis-files">
+                <div class="files-title">
+                    <i class="fas fa-file-alt"></i>
+                    可下载文件
+                </div>
+                <div class="files-grid">
+                    <div class="file-item">
+                        <div class="file-icon icon-excel">
+                            <i class="fas fa-file-excel"></i>
+                        </div>
+                        <div class="file-info">
+                            <div class="file-name">Home_Media_Analysis_20240318_091522.xlsx</div>
+                            <div class="file-meta">
+                                <span><i class="fas fa-file"></i> Excel</span>
+                                <span><i class="fas fa-weight-hanging"></i> 1.5 MB</span>
+                            </div>
+                        </div>
+                        <div class="file-actions">
+                            <button class="file-action-btn" title="下载" onclick="downloadFile('excel', 'Home_Media_Analysis_20240318_091522.xlsx')">
+                                <i class="fas fa-download"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 示例分析项目 3 -->
+        <div class="analysis-item">
+            <div class="analysis-header">
+                <div class="analysis-title">
+                    <i class="fas fa-chart-line"></i>
+                    成本效益专项分析
+                </div>
+                <span class="analysis-status status-processing">
+                    <i class="fas fa-spinner fa-spin me-1"></i> 生成中
+                </span>
+            </div>
+
+            <div class="analysis-info">
+                <div class="info-item">
+                    <i class="fas fa-calendar"></i>
+                    <div>
+                        <div class="info-label">分析时间</div>
+                        <div class="info-value">2024-03-20 16:45:33</div>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <i class="fas fa-tags"></i>
+                    <div>
+                        <div class="info-label">分析类目</div>
+                        <div class="info-value">成本效益专项</div>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <i class="fas fa-users"></i>
+                    <div>
+                        <div class="info-label">分析小组</div>
+                        <div class="info-value">快消、数码</div>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <i class="fas fa-database"></i>
+                    <div>
+                        <div class="info-label">数据量</div>
+                        <div class="info-value">856条记录</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="analysis-files">
+                <div class="files-title">
+                    <i class="fas fa-clock"></i>
+                    报告生成中，请稍候...
+                </div>
+                <div class="progress mt-3" style="height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px;">
+                    <div class="progress-bar" style="width: 65%; background: linear-gradient(90deg, var(--primary), var(--accent)); border-radius: 3px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 空状态 -->
+    <div id="emptyState" class="empty-state" style="display: none;">
+        <div class="empty-icon">
+            <i class="fas fa-inbox"></i>
+        </div>
+        <h4 style="color: var(--text-light); margin: 15px 0 10px;">暂无分析记录</h4>
+        <p style="color: var(--text-gray); margin-bottom: 20px;">还没有进行过分析，请先上传数据开始分析</p>
+        <a href="{{ url_for('index') }}" class="btn btn-advanced">
+            <i class="fas fa-upload me-1"></i> 前往上传页面
+        </a>
+    </div>
+
+    <!-- 分页 -->
+    <div class="pagination">
+        <button class="page-btn">
+            <i class="fas fa-chevron-left"></i>
+        </button>
+        <button class="page-btn active">1</button>
+        <button class="page-btn">2</button>
+        <button class="page-btn">3</button>
+        <span class="page-info">...</span>
+        <button class="page-btn">8</button>
+        <button class="page-btn">
+            <i class="fas fa-chevron-right"></i>
+        </button>
+        <span class="page-info">共 8 页，32 条记录</span>
+    </div>
+</div>
+
+<!-- 批量操作区域 -->
+<div class="download-section fade-in" style="animation-delay: 0.2s;">
+    <div class="section-header">
+        <div class="section-icon">
+            <i class="fas fa-tasks"></i>
+        </div>
+        <div>
+            <h2 class="section-title">批量操作</h2>
+            <div class="section-subtitle">批量管理和下载分析报告</div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <div class="card h-100" style="background: rgba(30, 41, 59, 0.5); border: 1px solid var(--card-border);">
+                <div class="card-body">
+                    <h5 class="card-title d-flex align-items-center">
+                        <i class="fas fa-file-archive text-primary me-2"></i>
+                        批量打包下载
+                    </h5>
+                    <p class="text-muted small mb-3">选择多个分析记录，打包下载所有相关文件</p>
+
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="selectAllAnalyses">
+                        <label class="form-check-label" for="selectAllAnalyses">全选当前页面</label>
+                    </div>
+
+                    <div class="mb-3" style="max-height: 200px; overflow-y: auto;">
+                        <div class="form-check mb-1">
+                            <input class="form-check-input analysis-checkbox" type="checkbox" id="analysis1" checked>
+                            <label class="form-check-label" for="analysis1">2024年第12周完整分析</label>
+                        </div>
+                        <div class="form-check mb-1">
+                            <input class="form-check-input analysis-checkbox" type="checkbox" id="analysis2">
+                            <label class="form-check-label" for="analysis2">2024年3月家居媒介组专项分析</label>
+                        </div>
+                        <div class="form-check mb-1">
+                            <input class="form-check-input analysis-checkbox" type="checkbox" id="analysis3">
+                            <label class="form-check-label" for="analysis3">成本效益专项分析</label>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-primary" onclick="downloadSelected()">
+                            <i class="fas fa-download me-1"></i> 下载选中项目
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick="clearSelection()">
+                            <i class="fas fa-times me-1"></i> 清空选择
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 mb-3">
+            <div class="card h-100" style="background: rgba(30, 41, 59, 0.5); border: 1px solid var(--card-border);">
+                <div class="card-body">
+                    <h5 class="card-title d-flex align-items-center">
+                        <i class="fas fa-trash-alt text-danger me-2"></i>
+                        批量清理管理
+                    </h5>
+                    <p class="text-muted small mb-3">清理过期的分析记录，释放存储空间</p>
+
+                    <div class="mb-3">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="text-sm">存储使用情况</span>
+                            <span class="text-sm text-primary">2.8 GB / 10 GB</span>
+                        </div>
+                        <div class="progress" style="height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px;">
+                            <div class="progress-bar" style="width: 28%; background: linear-gradient(90deg, var(--primary), var(--accent)); border-radius: 3px;"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="autoCleanup">
+                        <label class="form-check-label" for="autoCleanup">自动清理30天前的记录</label>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="keepExcel">
+                        <label class="form-check-label" for="keepExcel">保留Excel报告文件</label>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-danger" onclick="cleanupOldRecords()">
+                            <i class="fas fa-broom me-1"></i> 立即清理
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick="showCleanupSettings()">
+                            <i class="fas fa-cog me-1"></i> 清理设置
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let selectedAnalyses = new Set();
+
+// 初始化页面
+document.addEventListener('DOMContentLoaded', function() {
+    initCheckboxEvents();
+    checkEmptyState();
+});
+
+function initCheckboxEvents() {
+    // 全选/取消全选
+    document.getElementById('selectAllAnalyses').addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('.analysis-checkbox');
+        checkboxes.forEach(cb => {
+            cb.checked = this.checked;
+            updateSelectedAnalyses(cb.id, cb.checked);
+        });
+    });
+
+    // 单个选择框变化
+    document.querySelectorAll('.analysis-checkbox').forEach(cb => {
+        cb.addEventListener('change', function() {
+            updateSelectedAnalyses(this.id, this.checked);
+        });
+    });
+}
+
+function updateSelectedAnalyses(id, isChecked) {
+    if (isChecked) {
+        selectedAnalyses.add(id);
+    } else {
+        selectedAnalyses.delete(id);
+    }
+
+    // 更新全选框状态
+    const allCheckbox = document.getElementById('selectAllAnalyses');
+    const allCheckboxes = document.querySelectorAll('.analysis-checkbox');
+    const allChecked = Array.from(allCheckboxes).every(cb => cb.checked);
+    allCheckbox.checked = allChecked;
+    allCheckbox.indeterminate = !allChecked && selectedAnalyses.size > 0;
+}
+
+function checkEmptyState() {
+    const analysisList = document.querySelector('.analysis-list');
+    const emptyState = document.getElementById('emptyState');
+
+    // 这里应该从服务器获取真实的记录数
+    // 示例中我们假设有记录，所以隐藏空状态
+    emptyState.style.display = 'none';
+
+    // 如果没有记录，显示空状态
+    // emptyState.style.display = 'block';
+    // analysisList.style.display = 'none';
+}
+
+function filterAnalyses(filterType) {
+    // 更新按钮状态
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    event.target.classList.add('active');
+
+    // 这里应该根据filterType从服务器获取数据
+    console.log(`过滤分析记录: ${filterType}`);
+
+    // 显示加载状态
+    showLoading();
+
+    // 模拟API请求
+    setTimeout(() => {
+        hideLoading();
+        // 实际应用中，这里应该更新analysis-list的内容
+    }, 500);
+}
+
+function refreshDownloads() {
+    showLoading();
+
+    // 模拟刷新数据
+    setTimeout(() => {
+        hideLoading();
+        showToast('下载列表已刷新', 'success');
+    }, 1000);
+}
+
+function downloadAll() {
+    showLoading();
+
+    // 模拟打包下载
+    setTimeout(() => {
+        hideLoading();
+        showToast('开始打包下载所有报告', 'success');
+
+        // 这里应该触发真实的下载
+        // window.location.href = '/api/download/all';
+    }, 1500);
+}
+
+function downloadSelected() {
+    if (selectedAnalyses.size === 0) {
+        showToast('请至少选择一个分析项目', 'warning');
+        return;
+    }
+
+    showLoading();
+
+    // 模拟下载选中项目
+    setTimeout(() => {
+        hideLoading();
+        showToast(`开始下载 ${selectedAnalyses.size} 个选中项目`, 'success');
+
+        // 这里应该触发真实的下载
+        // const analysisIds = Array.from(selectedAnalyses);
+        // window.location.href = `/api/download/batch?ids=${analysisIds.join(',')}`;
+    }, 1500);
+}
+
+function clearSelection() {
+    selectedAnalyses.clear();
+    document.querySelectorAll('.analysis-checkbox').forEach(cb => {
+        cb.checked = false;
+    });
+    document.getElementById('selectAllAnalyses').checked = false;
+    document.getElementById('selectAllAnalyses').indeterminate = false;
+
+    showToast('选择已清空', 'info');
+}
+
+function cleanupOldRecords() {
+    if (!confirm('确定要清理过期的分析记录吗？此操作不可恢复。')) {
+        return;
+    }
+
+    showLoading();
+
+    // 模拟清理操作
+    setTimeout(() => {
+        hideLoading();
+        showToast('成功清理 1.2 GB 存储空间', 'success');
+
+        // 刷新页面
+        setTimeout(() => {
+            location.reload();
+        }, 1000);
+    }, 2000);
+}
+
+function showCleanupSettings() {
+    // 显示清理设置模态框
+    alert('清理设置\n\n实际应用中，这里会打开一个模态框进行清理设置。');
+}
+
+function exportAsJSON() {
+    showLoading();
+
+    // 模拟JSON导出
+    setTimeout(() => {
+        hideLoading();
+        showToast('JSON数据导出中...', 'success');
+
+        // 这里应该触发真实的JSON导出
+        // window.location.href = '/api/export/json/latest';
+    }, 1000);
+}
+
+function exportAsCSV() {
+    showLoading();
+
+    // 模拟CSV导出
+    setTimeout(() => {
+        hideLoading();
+        showToast('CSV数据导出中...', 'success');
+
+        // 这里应该触发真实的CSV导出
+        // window.location.href = '/api/export/csv/latest';
+    }, 1000);
+}
+
+function previewFile(fileType) {
+    // 显示文件预览
+    alert(`文件预览: ${fileType.toUpperCase()}\n\n实际应用中，这里会打开一个预览窗口显示文件内容。`);
+}
+
+function downloadFile(fileType, fileName) {
+    showLoading();
+
+    // 模拟文件下载
+    setTimeout(() => {
+        hideLoading();
+        showToast(`开始下载: ${fileName}`, 'success');
+
+        // 这里应该触发真实的下载
+        // 创建一个虚拟的下载链接
+        const link = document.createElement('a');
+        link.style.display = 'none';
+        document.body.appendChild(link);
+
+        // 模拟下载完成
+        setTimeout(() => {
+            document.body.removeChild(link);
+        }, 100);
+    }, 800);
+}
+
+function showLoading() {
+    // 显示加载遮罩
+    const loadingOverlay = document.createElement('div');
+    loadingOverlay.id = 'loadingOverlay';
+    loadingOverlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        backdrop-filter: blur(5px);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        color: white;
+    `;
+    loadingOverlay.innerHTML = `
+        <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+            <span class="visually-hidden">加载中...</span>
+        </div>
+        <div class="mt-3">正在处理，请稍候...</div>
+    `;
+    document.body.appendChild(loadingOverlay);
+}
+
+function hideLoading() {
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    if (loadingOverlay) {
+        loadingOverlay.remove();
+    }
+}
+
+function showToast(message, type) {
+    const toast = document.createElement('div');
+    toast.className = `toast fade-in position-fixed top-3 end-3`;
+    toast.style.cssText = `
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-left: 4px solid ${
+            type === 'success' ? '#10b981' :
+            type === 'error' ? '#ef4444' :
+            type === 'warning' ? '#f59e0b' : '#6366f1'
+        };
+        z-index: 9999;
+        min-width: 300px;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    `;
+
+    toast.innerHTML = `
+        <div class="d-flex align-items-center">
+            <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : type === 'warning' ? 'exclamation-triangle' : 'info-circle'} me-3"
+               style="color: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : type === 'warning' ? '#f59e0b' : '#6366f1'}; font-size: 1.2rem;"></i>
+            <div class="flex-grow-1" style="color: var(--text-light);">${message}</div>
+            <button type="button" class="btn-close btn-close-white ms-3" onclick="this.parentElement.parentElement.remove()"></button>
+        </div>
+    `;
+
+    document.body.appendChild(toast);
+
+    // 5秒后自动移除
+    setTimeout(() => {
+        if (toast.parentElement) {
+            toast.remove();
+        }
+    }, 5000);
+}
+
+// 添加键盘快捷键支持
+document.addEventListener('keydown', function(e) {
+    // Ctrl/Cmd + F 搜索
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        document.querySelector('input[type="text"]')?.focus();
+    }
+
+    // Ctrl/Cmd + D 全选
+    if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+        e.preventDefault();
+        const selectAll = document.getElementById('selectAllAnalyses');
+        if (selectAll) {
+            selectAll.click();
+        }
+    }
+
+    // Esc 清空选择
+    if (e.key === 'Escape') {
+        clearSelection();
+    }
+});
+</script>
+{% endblock %}

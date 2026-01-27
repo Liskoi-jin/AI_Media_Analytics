@@ -1,0 +1,2252 @@
+{% extends "base.html" %}
+
+{% block title %}工作质量分析 - AI媒介自动化审计分析系统{% endblock %}
+{% block page_title %}工作质量分析{% endblock %}
+{% block page_subtitle %}深入分析媒介提报过筛率与工作质量{% endblock %}
+{% block breadcrumb %}
+    <li class="breadcrumb-item"><a href="{{ url_for('dashboard', analysis_id=analysis_id) }}" class="text-decoration-none text-primary fw-medium" style="font-size: 16px;"><i class="fas fa-tachometer-alt me-1"></i>仪表盘</a></li>
+    <li class="breadcrumb-item active" style="color: var(--text-light);"><i class="fas fa-check-circle me-1"></i>工作质量分析</li>
+{% endblock %}
+
+{% block page_actions %}
+<div class="d-flex gap-2">
+    <!-- 导出按钮 -->
+    <div class="dropdown">
+        <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+            <i class="fas fa-download me-1"></i> 导出
+        </button>
+        <ul class="dropdown-menu dropdown-advanced">
+            <li><a class="dropdown-item" href="{{ url_for('download_report', analysis_id=analysis_id, report_type='quality') }}">
+    <i class="fas fa-file-excel text-success me-2"></i>导出完整质量分析Excel
+</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="#" onclick="exportChart('qualityChart')">
+                <i class="fas fa-chart-line text-primary me-2"></i>导出当前图表
+            </a></li>
+        </ul>
+    </div>
+
+    <!-- 切换视图按钮 -->
+    <button class="btn btn-advanced" onclick="toggleQualityView()">
+        <i class="fas fa-exchange-alt me-1"></i> 切换视图
+    </button>
+
+    <!-- 刷新数据按钮 -->
+    <button class="btn btn-outline-success" onclick="refreshQualityData()">
+        <i class="fas fa-sync-alt me-1"></i> 刷新数据
+    </button>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .quality-section {
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: 16px;
+        padding: 25px;
+        margin-bottom: 25px;
+        transition: var(--transition);
+    }
+
+    .quality-section:hover {
+        border-color: var(--primary);
+        box-shadow: var(--shadow-hover);
+    }
+
+    .section-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 25px;
+        padding-bottom: 20px;
+        border-bottom: 2px solid var(--card-border);
+    }
+
+    .section-icon {
+        width: 50px;
+        height: 50px;
+        background: rgba(16, 185, 129, 0.15);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 15px;
+        border: 1px solid rgba(16, 185, 129, 0.25);
+    }
+
+    .section-icon i {
+        color: #10b981;
+        font-size: 1.3rem;
+    }
+
+    .section-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--text-light);
+        margin: 0;
+    }
+
+    .section-subtitle {
+        color: var(--text-gray);
+        font-size: 0.95rem;
+        margin-top: 5px;
+    }
+
+    .quality-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-bottom: 25px;
+    }
+
+    .quality-card {
+        background: rgba(30, 41, 59, 0.5);
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid var(--card-border);
+        transition: var(--transition);
+    }
+
+    .quality-card:hover {
+        border-color: #10b981;
+        transform: translateY(-3px);
+    }
+
+    .quality-value {
+        font-size: 2.2rem;
+        font-weight: 700;
+        background: linear-gradient(90deg, #10b981, #059669);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        line-height: 1;
+        margin-bottom: 5px;
+    }
+
+    .quality-label {
+        color: var(--text-gray);
+        font-size: 0.9rem;
+        margin-bottom: 10px;
+    }
+
+    .quality-trend {
+        display: flex;
+        align-items: center;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+
+    .quality-badge {
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .badge-excellent {
+        background: rgba(16, 185, 129, 0.2);
+        color: #10b981;
+        border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .badge-good {
+        background: rgba(59, 130, 246, 0.2);
+        color: #3b82f6;
+        border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+
+    .badge-average {
+        background: rgba(245, 158, 11, 0.2);
+        color: #f59e0b;
+        border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .badge-need-improve {
+        background: rgba(249, 115, 22, 0.2);
+        color: #f97316;
+        border: 1px solid rgba(249, 115, 22, 0.3);
+    }
+
+    .badge-poor {
+        background: rgba(239, 68, 68, 0.2);
+        color: #ef4444;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .chart-container-wrapper {
+        background: rgba(30, 41, 59, 0.5);
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid var(--card-border);
+        margin-bottom: 25px;
+    }
+
+    .chart-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+
+    .filter-buttons {
+        display: flex;
+        gap: 10px;
+    }
+
+    .filter-btn {
+        padding: 6px 15px;
+        background: rgba(30, 41, 59, 0.5);
+        border: 1px solid var(--card-border);
+        border-radius: 8px;
+        color: var(--text-gray);
+        font-size: 0.9rem;
+        transition: var(--transition);
+        cursor: pointer;
+    }
+
+    .filter-btn:hover {
+        background: rgba(16, 185, 129, 0.1);
+        color: #10b981;
+        border-color: rgba(16, 185, 129, 0.3);
+    }
+
+    .filter-btn.active {
+        background: rgba(16, 185, 129, 0.2);
+        color: #10b981;
+        border-color: rgba(16, 185, 129, 0.4);
+        font-weight: 500;
+    }
+
+    .comparison-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+        margin-bottom: 25px;
+    }
+
+    .comparison-item {
+        background: rgba(30, 41, 59, 0.5);
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid var(--card-border);
+    }
+
+    .comparison-label {
+        color: var(--text-gray);
+        font-size: 0.9rem;
+        margin-bottom: 8px;
+    }
+
+    .comparison-bar {
+        height: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        overflow: hidden;
+        margin-bottom: 8px;
+    }
+
+    .comparison-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.5s ease;
+    }
+
+    .comparison-value {
+        font-size: 0.9rem;
+        font-weight: 500;
+        text-align: right;
+    }
+
+    .no-data {
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--text-gray);
+    }
+
+    .no-data-icon {
+        width: 80px;
+        height: 80px;
+        background: rgba(16, 185, 129, 0.1);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 20px;
+        border: 2px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .no-data-icon i {
+        color: #10b981;
+        font-size: 2rem;
+    }
+
+    .table-tabs {
+        border-bottom: 2px solid var(--card-border);
+        margin-bottom: 20px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+    }
+
+    .table-tab {
+        padding: 12px 25px;
+        background: transparent;
+        border: none;
+        color: var(--text-gray);
+        font-weight: 500;
+        position: relative;
+        transition: var(--transition);
+        cursor: pointer;
+        font-size: 0.95rem;
+        border-radius: 8px 8px 0 0;
+    }
+
+    .table-tab:hover {
+        color: var(--primary);
+        background: rgba(16, 185, 129, 0.05);
+    }
+
+    .table-tab.active {
+        color: #10b981;
+        background: rgba(16, 185, 129, 0.1);
+        border-bottom: 2px solid #10b981;
+    }
+
+    .table-search-container {
+        margin-bottom: 20px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .export-mini-btn {
+        padding: 8px 12px;
+        font-size: 0.85rem;
+        white-space: nowrap;
+    }
+    
+    /* 表格样式修改为深色背景 */
+    .table-advanced {
+        background: var(--card-bg);
+        color: var(--text-light);
+        border-color: var(--card-border);
+    }
+    
+    .table-advanced thead th {
+        background: rgba(15, 23, 42, 0.7);
+        border-bottom: 2px solid var(--card-border);
+        color: var(--text-light);
+        font-weight: 600;
+        padding: 12px 16px;
+    }
+    
+    .table-advanced tbody td {
+        background: rgba(30, 41, 59, 0.5);
+        border-color: var(--card-border);
+        padding: 12px 16px;
+        color: var(--text-light);
+    }
+    
+    .table-advanced tbody tr:hover td {
+        background: rgba(16, 185, 129, 0.1);
+    }
+    
+    .table-advanced tbody tr:nth-child(even) td {
+        background: rgba(30, 41, 59, 0.3);
+    }
+    
+    .table-advanced tbody tr:hover:nth-child(even) td {
+        background: rgba(16, 185, 129, 0.15);
+    }
+    
+    /* 新增：小组徽章样式 */
+    .group-badge {
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+    
+    .badge-blue {
+        background: rgba(59, 130, 246, 0.2);
+        color: #3b82f6;
+        border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+    
+    .badge-green {
+        background: rgba(16, 185, 129, 0.2);
+        color: #10b981;
+        border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    
+    .badge-orange {
+        background: rgba(245, 158, 11, 0.2);
+        color: #f59e0b;
+        border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+    
+    .badge-gray {
+        background: rgba(107, 114, 128, 0.2);
+        color: #6b7280;
+        border: 1px solid rgba(107, 114, 128, 0.3);
+    }
+
+    /* 新增：达人类型徽章样式 */
+    .purpose-badge {
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+
+    .badge-premium {
+        background: rgba(139, 92, 246, 0.2);
+        color: #8b5cf6;
+        border: 1px solid rgba(139, 92, 246, 0.3);
+    }
+
+    .badge-high-read {
+        background: rgba(236, 72, 153, 0.2);
+        color: #ec4899;
+        border: 1px solid rgba(236, 72, 153, 0.3);
+    }
+
+    /* 响应式调整 */
+    @media (max-width: 768px) {
+        .quality-cards {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .comparison-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .table-tabs {
+            flex-direction: column;
+        }
+
+        .table-tab {
+            border-radius: 8px;
+            margin-bottom: 5px;
+        }
+
+        .table-tab.active::after {
+            display: none;
+        }
+    }
+
+    /* 新增：无数据提示样式 */
+    .no-chart-data {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 400px;
+        color: var(--text-gray);
+        text-align: center;
+        background: rgba(30, 41, 59, 0.3);
+        border-radius: 8px;
+        border: 2px dashed var(--card-border);
+    }
+
+    .no-chart-data i {
+        font-size: 48px;
+        margin-bottom: 20px;
+        opacity: 0.5;
+    }
+
+    .debug-info {
+        font-size: 0.8rem;
+        color: var(--text-gray);
+        padding: 10px;
+        background: rgba(0,0,0,0.2);
+        border-radius: 4px;
+        margin-bottom: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- 调试信息（仅开发时显示） -->
+<div class="debug-info" style="display: none;">
+    数据统计:
+    质量分布: {{ quality_distribution|length if quality_distribution else 0 }}条,
+    小组汇总: {{ group_summary|length if group_summary else 0 }}条,
+    详细数据: {{ detail_data|length if detail_data else 0 }}条
+</div>
+
+<!-- 概览区域 -->
+<div class="quality-section fade-in">
+    <div class="section-header">
+        <div class="section-icon">
+            <i class="fas fa-chart-line"></i>
+        </div>
+        <div>
+            <h2 class="section-title">工作质量概览</h2>
+            <div class="section-subtitle">分析时间: {{ analysis_data.timestamp if analysis_data else "未知" }}</div>
+        </div>
+    </div>
+
+    <!-- 核心指标卡片 -->
+    <div class="quality-cards">
+        <div class="quality-card">
+            <div class="quality-value">
+                {{ (summary.get('总体过筛率(%)', summary.get('overall_screening_rate', '0.00%')))|format_percentage }}
+            </div>
+            <div class="quality-label">总体过筛率</div>
+            <div class="quality-trend">
+                <i class="fas fa-arrow-up trend-up me-1"></i>
+                <span class="trend-up">提报质量关键指标</span>
+            </div>
+        </div>
+
+        <div class="quality-card">
+            <div class="quality-value">
+                {{ summary.get('总提报达人数', summary.get('总数据条数', 0))|int }}
+            </div>
+            <div class="quality-label">总提报达人数</div>
+            <div class="quality-trend">
+                <i class="fas fa-user-check me-1"></i>
+                <span>提报总量</span>
+            </div>
+        </div>
+
+        <div class="quality-card">
+            <div class="quality-value">
+                {{ summary.get('媒介总数', 0) }}
+            </div>
+            <div class="quality-label">分析媒介数</div>
+            <div class="quality-trend">
+                <i class="fas fa-users me-1"></i>
+                <span>参与媒介数量</span>
+            </div>
+        </div>
+
+        <div class="quality-card">
+            <div class="quality-value">
+                {{ summary.get('优秀质量媒介数', 0) }}
+            </div>
+            <div class="quality-label">优秀质量媒介</div>
+            <div class="quality-trend">
+                <i class="fas fa-crown text-warning me-1"></i>
+                <span class="text-warning">高质量媒介</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 详细指标 -->
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="comparison-item">
+                <div class="comparison-label">过筛情况统计</div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span style="color: var(--text-light);">过筛人数</span>
+                        <span class="comparison-value text-success">
+                            {{ summary.get('总过筛人数', 0)|int }}
+                        </span>
+                    </div>
+                    <div class="comparison-bar">
+                        {% set total_reporting = summary.get('总提报达人数', 1) %}
+                        {% set passed_rate = (summary.get('总过筛人数', 0) / total_reporting * 100) if total_reporting > 0 else 0 %}
+                        <div class="comparison-fill" style="background: linear-gradient(90deg, #10b981, #059669); width: {{ passed_rate|safe_min(100) }}%;"></div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span style="color: var(--text-light);">未过筛人数</span>
+                        <span class="comparison-value text-danger">
+                            {{ summary.get('总未过筛人数', 0)|int }}
+                        </span>
+                    </div>
+                    <div class="comparison-bar">
+                        {% set failed_rate = (summary.get('总未过筛人数', 0) / total_reporting * 100) if total_reporting > 0 else 0 %}
+                        <div class="comparison-fill" style="background: linear-gradient(90deg, #ef4444, #dc2626); width: {{ failed_rate|safe_min(100) }}%;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="comparison-item">
+                <div class="comparison-label">质量等级分布</div>
+                {% if quality_distribution and quality_distribution|length > 0 %}
+                    {% for item in quality_distribution %}
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span style="color: var(--text-light);">{{ item.质量等级 }}</span>
+                            <span class="comparison-value {% if item.质量等级 == '优秀' %}text-success{% elif item.质量等级 == '良好' %}text-primary{% elif item.质量等级 == '一般' %}text-warning{% elif item.质量等级 == '待改进' %}text-orange{% else %}text-danger{% endif %}">
+                                {{ item.媒介数量 }} ({{ item['占比(%)'] or '0.0%' }})
+                            </span>
+                        </div>
+                        <div class="comparison-bar">
+                            {% set percent_value = item['占比(%)']|string|replace('%','')|float|default(0) %}
+                            <div class="comparison-fill" style="background: linear-gradient(90deg,
+                                {% if item.质量等级 == '优秀' %}#10b981
+                                {% elif item.质量等级 == '良好' %}#3b82f6
+                                {% elif item.质量等级 == '一般' %}#f59e0b
+                                {% elif item.质量等级 == '待改进' %}#f97316
+                                {% else %}#ef4444{% endif %},
+                                {% if item.质量等级 == '优秀' %}#059669
+                                {% elif item.质量等级 == '良好' %}#1d4ed8
+                                {% elif item.质量等级 == '一般' %}#d97706
+                                {% elif item.质量等级 == '待改进' %}#ea580c
+                                {% else %}#dc2626{% endif %});
+                                width: {{ percent_value|safe_min(100) }}%;">
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="no-data" style="padding: 20px 0;">
+                        <div class="no-data-icon" style="width: 50px; height: 50px;">
+                            <i class="fas fa-chart-pie"></i>
+                        </div>
+                        <div style="color: var(--text-gray);">暂无分布数据</div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 图表区域 -->
+<div class="quality-section fade-in" style="animation-delay: 0.1s;">
+    <div class="section-header">
+        <div class="section-icon">
+            <i class="fas fa-chart-pie"></i>
+        </div>
+        <div>
+            <h2 class="section-title">可视化分析</h2>
+            <div class="section-subtitle">质量分布与小组对比可视化图表</div>
+        </div>
+    </div>
+
+    <div class="chart-container-wrapper">
+        <div class="chart-header">
+            <h4 class="mb-0" style="color: var(--text-light);">质量等级分布图</h4>
+            <div class="filter-buttons">
+                <button class="filter-btn active" onclick="updateChart('pie')">饼图</button>
+                <button class="filter-btn" onclick="updateChart('bar')">柱状图</button>
+                <button class="filter-btn" onclick="updateChart('doughnut')">环形图</button>
+            </div>
+        </div>
+        <div class="chart-container" style="height: 400px; position: relative;">
+            <canvas id="qualityChart"></canvas>
+            <div id="qualityChartNoData" class="no-chart-data" style="display: none;">
+                <i class="fas fa-chart-pie"></i>
+                <h5>暂无质量分布数据</h5>
+                <p>请确保已上传包含质量分析数据的文件</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 小组对比图表 -->
+    <div class="chart-container-wrapper mt-4">
+        <div class="chart-header">
+            <h4 class="mb-0" style="color: var(--text-light);">各小组过筛率对比</h4>
+            <div class="filter-buttons">
+                <button class="filter-btn active" onclick="updateGroupChart('bar')">柱状图</button>
+                <button class="filter-btn" onclick="updateGroupChart('radar')">雷达图</button>
+            </div>
+        </div>
+        <div class="chart-container" style="height: 400px; position: relative;">
+            <canvas id="groupChart"></canvas>
+            <div id="groupChartNoData" class="no-chart-data" style="display: none;">
+                <i class="fas fa-chart-bar"></i>
+                <h5>暂无小组对比数据</h5>
+                <p>请确保已上传包含小组分析数据的文件</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 数据表格区域 -->
+<div class="quality-section fade-in" style="animation-delay: 0.2s;">
+    <div class="section-header">
+        <div class="section-icon">
+            <i class="fas fa-table"></i>
+        </div>
+        <div>
+            <h2 class="section-title">详细数据表格</h2>
+            <div class="section-subtitle">工作质量明细数据与筛选查看</div>
+        </div>
+    </div>
+
+    <!-- 表格标签页 -->
+    <div class="table-tabs">
+        <button class="table-tab active" onclick="showTable('qualityDetail')">质量明细</button>
+        <button class="table-tab" onclick="showTable('qualityTop')">质量排名TOP 20</button>
+        <button class="table-tab" onclick="showTable('premiumDetail')">优质达人质量</button>
+        <button class="table-tab" onclick="showTable('highReadDetail')">高阅读达人质量</button>
+        <button class="table-tab" onclick="showTable('groupSummary')">小组汇总</button>
+        <button class="table-tab" onclick="showTable('qualityDistribution')">质量分布</button>
+    </div>
+
+    <!-- 搜索和导出区域 -->
+    <div id="searchContainer" class="table-search-container">
+        <input type="text" id="searchInput" class="form-control form-control-advanced" placeholder="搜索媒介名称、小组或质量等级..." onkeyup="searchTable()">
+        <button class="btn btn-sm btn-outline-success export-mini-btn" onclick="exportCurrentTable()">
+            <i class="fas fa-download me-1"></i>导出当前表格
+        </button>
+        <button class="btn btn-sm btn-outline-secondary export-mini-btn" onclick="resetFilters()">
+            <i class="fas fa-redo me-1"></i>重置筛选
+        </button>
+    </div>
+
+    <!-- 质量明细表格 -->
+    <div id="qualityDetailTable" class="table-content">
+        <div class="table-responsive">
+            <table class="table table-advanced table-hover">
+                <thead>
+                    <tr>
+                        <th>序号</th>
+                        <th>定档媒介ID</th>
+                        <th>对应名字</th>
+                        <th>所属小组</th>
+                        <th>总提报达人数</th>
+                        <th>过筛人数</th>
+                        <th>过筛率(%)</th>
+                        <th>未过筛人数</th>
+                        <th>未过筛率(%)</th>
+                        <th>质量评估</th>
+                        <th>主要状态分布</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if detail_data and detail_data|length > 0 %}
+                        {% for row in detail_data %}
+                        <tr>
+                            <td class="fw-bold">{{ loop.index }}</td>
+                            <td>{{ row.get('定档媒介ID', '') }}</td>
+                            <td class="fw-medium">{{ row.get('对应名字', '未知') }}</td>
+                            <td>
+                                <span class="group-badge {% if row.get('所属小组', '') == '家居媒介组' %}badge-blue{% elif row.get('所属小组', '') == '快消媒介组' %}badge-green{% elif row.get('所属小组', '') == '数码媒介组' %}badge-orange{% else %}badge-gray{% endif %}">
+                                    {{ row.get('所属小组', '未知') }}
+                                </span>
+                            </td>
+                            <td>{{ row.get('总提报达人数', 0)|int }}</td>
+                            <td>{{ row.get('过筛人数', 0)|int }}</td>
+                            <td>
+                                {% set rate_value = row.get('过筛率(%)', '0.00%')|string|replace('%','')|float|default(0) %}
+                                <span class="{% if rate_value > 80 %}text-success{% elif rate_value > 60 %}text-warning{% else %}text-danger{% endif %} fw-bold">
+                                    {{ "%.2f%%"|format(rate_value) }}
+                                </span>
+                            </td>
+                            <td>{{ row.get('未过筛人数', 0)|int }}</td>
+                            <td>
+                                {% set fail_rate = row.get('未过筛率(%)', '0.00%')|string|replace('%','')|float|default(0) %}
+                                <span class="{% if fail_rate > 40 %}text-danger{% elif fail_rate > 20 %}text-warning{% else %}text-secondary{% endif %}">
+                                    {{ "%.2f%%"|format(fail_rate) }}
+                                </span>
+                            </td>
+                            <td>
+                                {% set rating = row.get('质量评估', '待改进') %}
+                                <span class="quality-badge
+                                    {% if rating == '优秀' %}badge-excellent
+                                    {% elif rating == '良好' %}badge-good
+                                    {% elif rating == '一般' %}badge-average
+                                    {% elif rating == '待改进' %}badge-need-improve
+                                    {% else %}badge-poor{% endif %}">
+                                    <i class="fas fa-{% if rating == '优秀' %}crown{% elif rating == '良好' %}star{% elif rating == '一般' %}chart-line{% elif rating == '待改进' %}exclamation-triangle{% else %}exclamation-circle{% endif %}"></i>
+                                    {{ rating }}
+                                </span>
+                            </td>
+                            <td style="max-width: 200px; font-size: 0.85rem;">{{ row.get('主要状态分布', '无数据') }}</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary" onclick="showMediaDetail('{{ row.get('对应名字', '') }}')" title="查看详情">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="12" class="text-center py-5">
+                                <div class="no-data">
+                                    <div class="no-data-icon">
+                                        <i class="fas fa-check-circle"></i>
+                                    </div>
+                                    <h5 style="color: var(--text-light); margin: 15px 0 10px;">暂无质量明细数据</h5>
+                                    <p style="color: var(--text-gray);">请上传工作质量数据进行查看</p>
+                                </div>
+                                </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+        {% if detail_data and detail_data|length > 0 %}
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <div class="text-muted">
+                显示 {{ detail_data|length }} 条记录
+            </div>
+            <nav>
+    <ul class="pagination pagination-sm mb-0">
+        <li class="page-item disabled">
+            <a class="page-link" href="#"
+               style="color: #475569 !important;
+                      background-color: #ffffff !important;
+                      border-color: #cbd5e1 !important;
+                      opacity: 0.7;">
+                上一页
+            </a>
+        </li>
+        <li class="page-item active">
+            <a class="page-link" href="#"
+               style="color: #ffffff !important;
+                      background-color: #10b981 !important;
+                      border-color: #10b981 !important;">
+                1
+            </a>
+        </li>
+        <li class="page-item disabled">
+            <a class="page-link" href="#"
+               style="color: #475569 !important;
+                      background-color: #ffffff !important;
+                      border-color: #cbd5e1 !important;
+                      opacity: 0.7;">
+                下一页
+            </a>
+        </li>
+    </ul>
+</nav>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 质量排名表格 -->
+    <div id="qualityTopTable" class="table-content" style="display: none;">
+        <div class="table-responsive">
+            <table class="table table-advanced table-hover">
+                <thead>
+                    <tr>
+                        <th>排名</th>
+                        <th>媒介名称</th>
+                        <th>所属小组</th>
+                        <th>总提报达人数</th>
+                        <th>过筛人数</th>
+                        <th>过筛率</th>
+                        <th>质量评估</th>
+                        <th>评估说明</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if detail_data and detail_data|length > 0 %}
+                        {# 关键修改：修复排序逻辑 #}
+                        {% set top_data = [] %}
+                        {% for row in detail_data %}
+                            {# 提取过筛率数值 #}
+                            {% set rate_str = row.get('过筛率(%)', '0.00%')|string %}
+                            {% set rate_value = rate_str|replace('%','')|float|default(0) %}
+
+                            {# 创建包含排序键的数据项 #}
+                            {% set data_item = {
+                                '对应名字': row.get('对应名字', '未知'),
+                                '所属小组': row.get('所属小组', '未知'),
+                                '总提报达人数': row.get('总提报达人数', 0),
+                                '过筛人数': row.get('过筛人数', 0),
+                                '过筛率(%)': row.get('过筛率(%)', '0.00%'),
+                                '过筛率数值': rate_value,
+                                '质量评估': row.get('质量评估', '待改进'),
+                                '评估说明': row.get('评估说明', '')
+                            } %}
+
+                            {% set _ = top_data.append(data_item) %}
+                        {% endfor %}
+
+                        {# 按照过筛率数值从高到低排序 #}
+                        {% set sorted_top_data = top_data|sort(attribute='过筛率数值', reverse=true) %}
+
+                        {% for row in sorted_top_data[:20] %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    {% if loop.index == 1 %}
+                                        <i class="fas fa-trophy text-warning me-2"></i>
+                                    {% elif loop.index == 2 %}
+                                        <i class="fas fa-medal text-secondary me-2"></i>
+                                    {% elif loop.index == 3 %}
+                                        <i class="fas fa-award text-bronze me-2"></i>
+                                    {% endif %}
+                                    <span class="fw-bold">{{ loop.index }}</span>
+                                </div>
+                            </td>
+                            <td class="fw-medium">{{ row.get('对应名字', '未知') }}</td>
+                            <td>
+                                <span class="group-badge {% if row.get('所属小组', '') == '家居媒介组' %}badge-blue{% elif row.get('所属小组', '') == '快消媒介组' %}badge-green{% elif row.get('所属小组', '') == '数码媒介组' %}badge-orange{% else %}badge-gray{% endif %}">
+                                    {{ row.get('所属小组', '未知') }}
+                                </span>
+                            </td>
+                            <td>{{ row.get('总提报达人数', 0)|int }}</td>
+                            <td>{{ row.get('过筛人数', 0)|int }}</td>
+                            <td class="text-success fw-bold">
+                                {{ row.get('过筛率(%)', '0.00%') }}
+                            </td>
+                            <td>
+                                {% set rating = row.get('质量评估', '待改进') %}
+                                <span class="quality-badge
+                                    {% if rating == '优秀' %}badge-excellent
+                                    {% elif rating == '良好' %}badge-good
+                                    {% elif rating == '一般' %}badge-average
+                                    {% elif rating == '待改进' %}badge-need-improve
+                                    {% else %}badge-poor{% endif %}">
+                                    {{ rating }}
+                                </span>
+                            </td>
+                            <td style="max-width: 300px; font-size: 0.85rem;">
+                                {{ row.get('评估说明', '')|truncate(50) }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="8" class="text-center py-5">
+                                <div class="no-data">
+                                    <div class="no-data-icon">
+                                        <i class="fas fa-trophy"></i>
+                                    </div>
+                                    <h5 style="color: var(--text-light); margin: 15px 0 10px;">暂无排名数据</h5>
+                                    <p style="color: var(--text-gray);">请上传完整数据进行排名分析</p>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 【新增】优质达人质量表格 -->
+    <div id="premiumDetailTable" class="table-content" style="display: none;">
+        <div class="table-responsive">
+            <table class="table table-advanced table-hover">
+                <thead>
+                    <tr>
+                        <th>序号</th>
+                        <th>定档媒介ID</th>
+                        <th>对应名字</th>
+                        <th>所属小组</th>
+                        <th>达人类型</th>
+                        <th>总提报达人数</th>
+                        <th>过筛人数</th>
+                        <th>过筛率(%)</th>
+                        <th>未过筛人数</th>
+                        <th>未过筛率(%)</th>
+                        <th>质量评估</th>
+                        <th>主要状态分布</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if premium_detail and premium_detail|length > 0 %}
+                        {% for row in premium_detail %}
+                        <tr>
+                            <td class="fw-bold">{{ loop.index }}</td>
+                            <td>{{ row.get('定档媒介ID', '') }}</td>
+                            <td class="fw-medium">{{ row.get('对应名字', '未知') }}</td>
+                            <td>
+                                <span class="group-badge {% if row.get('所属小组', '') == '家居媒介组' %}badge-blue{% elif row.get('所属小组', '') == '快消媒介组' %}badge-green{% elif row.get('所属小组', '') == '数码媒介组' %}badge-orange{% else %}badge-gray{% endif %}">
+                                    {{ row.get('所属小组', '未知') }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="purpose-badge badge-premium">
+                                    {{ row.get('达人类型', '优质达人') }}
+                                </span>
+                            </td>
+                            <td>{{ row.get('总提报达人数', 0)|int }}</td>
+                            <td>{{ row.get('过筛人数', 0)|int }}</td>
+                            <td>
+                                {% set rate_value = row.get('过筛率(%)', '0.00%')|string|replace('%','')|float|default(0) %}
+                                <span class="{% if rate_value > 80 %}text-success{% elif rate_value > 60 %}text-warning{% else %}text-danger{% endif %} fw-bold">
+                                    {{ "%.2f%%"|format(rate_value) }}
+                                </span>
+                            </td>
+                            <td>{{ row.get('未过筛人数', 0)|int }}</td>
+                            <td>
+                                {% set fail_rate = row.get('未过筛率(%)', '0.00%')|string|replace('%','')|float|default(0) %}
+                                <span class="{% if fail_rate > 40 %}text-danger{% elif fail_rate > 20 %}text-warning{% else %}text-secondary{% endif %}">
+                                    {{ "%.2f%%"|format(fail_rate) }}
+                                </span>
+                            </td>
+                            <td>
+                                {% set rating = row.get('质量评估', '待改进') %}
+                                <span class="quality-badge
+                                    {% if rating == '优秀' %}badge-excellent
+                                    {% elif rating == '良好' %}badge-good
+                                    {% elif rating == '一般' %}badge-average
+                                    {% elif rating == '待改进' %}badge-need-improve
+                                    {% else %}badge-poor{% endif %}">
+                                    <i class="fas fa-{% if rating == '优秀' %}crown{% elif rating == '良好' %}star{% elif rating == '一般' %}chart-line{% elif rating == '待改进' %}exclamation-triangle{% else %}exclamation-circle{% endif %}"></i>
+                                    {{ rating }}
+                                </span>
+                            </td>
+                            <td style="max-width: 200px; font-size: 0.85rem;">{{ row.get('主要状态分布', '无数据') }}</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary" onclick="showMediaDetail('{{ row.get('对应名字', '') }}')" title="查看详情">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="13" class="text-center py-5">
+                                <div class="no-data">
+                                    <div class="no-data-icon">
+                                        <i class="fas fa-user-tie"></i>
+                                    </div>
+                                    <h5 style="color: var(--text-light); margin: 15px 0 10px;">暂无优质达人质量数据</h5>
+                                    <p style="color: var(--text-gray);">数据中无'influencer_purpose'字段或优质达人数据</p>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+        {% if premium_detail and premium_detail|length > 0 %}
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <div class="text-muted">
+                显示 {{ premium_detail|length }} 条记录
+            </div>
+            <nav>
+    <ul class="pagination pagination-sm mb-0">
+        <li class="page-item disabled">
+            <a class="page-link" href="#"
+               style="color: #475569 !important;
+                      background-color: #ffffff !important;
+                      border-color: #cbd5e1 !important;
+                      opacity: 0.7;">
+                上一页
+            </a>
+        </li>
+        <li class="page-item active">
+            <a class="page-link" href="#"
+               style="color: #ffffff !important;
+                      background-color: #10b981 !important;
+                      border-color: #10b981 !important;">
+                1
+            </a>
+        </li>
+        <li class="page-item disabled">
+            <a class="page-link" href="#"
+               style="color: #475569 !important;
+                      background-color: #ffffff !important;
+                      border-color: #cbd5e1 !important;
+                      opacity: 0.7;">
+                下一页
+            </a>
+        </li>
+    </ul>
+</nav>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 【新增】高阅读达人质量表格 -->
+    <div id="highReadDetailTable" class="table-content" style="display: none;">
+        <div class="table-responsive">
+            <table class="table table-advanced table-hover">
+                <thead>
+                    <tr>
+                        <th>序号</th>
+                        <th>定档媒介ID</th>
+                        <th>对应名字</th>
+                        <th>所属小组</th>
+                        <th>达人类型</th>
+                        <th>总提报达人数</th>
+                        <th>过筛人数</th>
+                        <th>过筛率(%)</th>
+                        <th>未过筛人数</th>
+                        <th>未过筛率(%)</th>
+                        <th>质量评估</th>
+                        <th>主要状态分布</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if high_read_detail and high_read_detail|length > 0 %}
+                        {% for row in high_read_detail %}
+                        <tr>
+                            <td class="fw-bold">{{ loop.index }}</td>
+                            <td>{{ row.get('定档媒介ID', '') }}</td>
+                            <td class="fw-medium">{{ row.get('对应名字', '未知') }}</td>
+                            <td>
+                                <span class="group-badge {% if row.get('所属小组', '') == '家居媒介组' %}badge-blue{% elif row.get('所属小组', '') == '快消媒介组' %}badge-green{% elif row.get('所属小组', '') == '数码媒介组' %}badge-orange{% else %}badge-gray{% endif %}">
+                                    {{ row.get('所属小组', '未知') }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="purpose-badge badge-high-read">
+                                    {{ row.get('达人类型', '高阅读达人') }}
+                                </span>
+                            </td>
+                            <td>{{ row.get('总提报达人数', 0)|int }}</td>
+                            <td>{{ row.get('过筛人数', 0)|int }}</td>
+                            <td>
+                                {% set rate_value = row.get('过筛率(%)', '0.00%')|string|replace('%','')|float|default(0) %}
+                                <span class="{% if rate_value > 80 %}text-success{% elif rate_value > 60 %}text-warning{% else %}text-danger{% endif %} fw-bold">
+                                    {{ "%.2f%%"|format(rate_value) }}
+                                </span>
+                            </td>
+                            <td>{{ row.get('未过筛人数', 0)|int }}</td>
+                            <td>
+                                {% set fail_rate = row.get('未过筛率(%)', '0.00%')|string|replace('%','')|float|default(0) %}
+                                <span class="{% if fail_rate > 40 %}text-danger{% elif fail_rate > 20 %}text-warning{% else %}text-secondary{% endif %}">
+                                    {{ "%.2f%%"|format(fail_rate) }}
+                                </span>
+                            </td>
+                            <td>
+                                {% set rating = row.get('质量评估', '待改进') %}
+                                <span class="quality-badge
+                                    {% if rating == '优秀' %}badge-excellent
+                                    {% elif rating == '良好' %}badge-good
+                                    {% elif rating == '一般' %}badge-average
+                                    {% elif rating == '待改进' %}badge-need-improve
+                                    {% else %}badge-poor{% endif %}">
+                                    <i class="fas fa-{% if rating == '优秀' %}crown{% elif rating == '良好' %}star{% elif rating == '一般' %}chart-line{% elif rating == '待改进' %}exclamation-triangle{% else %}exclamation-circle{% endif %}"></i>
+                                    {{ rating }}
+                                </span>
+                            </td>
+                            <td style="max-width: 200px; font-size: 0.85rem;">{{ row.get('主要状态分布', '无数据') }}</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary" onclick="showMediaDetail('{{ row.get('对应名字', '') }}')" title="查看详情">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="13" class="text-center py-5">
+                                <div class="no-data">
+                                    <div class="no-data-icon">
+                                        <i class="fas fa-eye"></i>
+                                    </div>
+                                    <h5 style="color: var(--text-light); margin: 15px 0 10px;">暂无高阅读达人质量数据</h5>
+                                    <p style="color: var(--text-gray);">数据中无'influencer_purpose'字段或高阅读达人数据</p>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+        {% if high_read_detail and high_read_detail|length > 0 %}
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <div class="text-muted">
+                显示 {{ high_read_detail|length }} 条记录
+            </div>
+            <nav>
+    <ul class="pagination pagination-sm mb-0">
+        <li class="page-item disabled">
+            <a class="page-link" href="#"
+               style="color: #475569 !important;
+                      background-color: #ffffff !important;
+                      border-color: #cbd5e1 !important;
+                      opacity: 0.7;">
+                上一页
+            </a>
+        </li>
+        <li class="page-item active">
+            <a class="page-link" href="#"
+               style="color: #ffffff !important;
+                      background-color: #10b981 !important;
+                      border-color: #10b981 !important;">
+                1
+            </a>
+        </li>
+        <li class="page-item disabled">
+            <a class="page-link" href="#"
+               style="color: #475569 !important;
+                      background-color: #ffffff !important;
+                      border-color: #cbd5e1 !important;
+                      opacity: 0.7;">
+                下一页
+            </a>
+        </li>
+    </ul>
+</nav>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 小组汇总表格 -->
+    <div id="groupSummaryTable" class="table-content" style="display: none;">
+        <div class="table-responsive">
+            <table class="table table-advanced table-hover">
+                <thead>
+                    <tr>
+                        <th>所属小组</th>
+                        <th>媒介数量</th>
+                        <th>总提报达人数</th>
+                        <th>总过筛人数</th>
+                        <th>总未过筛人数</th>
+                        <th>小组过筛率</th>
+                        <th>小组未过筛率</th>
+                        <th>优秀媒介数</th>
+                        <th>良好媒介数</th>
+                        <th>优秀良好占比</th>
+                        <th>提报量占比</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if group_summary and group_summary|length > 0 %}
+                        {% for row in group_summary %}
+                        <tr>
+                            <td class="fw-medium">{{ row.get('所属小组', '未知') }}</td>
+                            <td>{{ row.get('媒介数量', 0)|int }}</td>
+                            <td>{{ row.get('总提报达人数', 0)|int }}</td>
+                            <td>{{ row.get('总过筛人数', 0)|int }}</td>
+                            <td>{{ row.get('总未过筛人数', 0)|int }}</td>
+                            <td>
+                                {% set group_rate = row.get('小组过筛率(%)', '0.00%')|string|replace('%','')|float|default(0) %}
+                                <span class="{% if group_rate > 80 %}text-success{% elif group_rate > 60 %}text-warning{% else %}text-danger{% endif %} fw-bold">
+                                    {{ "%.2f%%"|format(group_rate) }}
+                                </span>
+                            </td>
+                            <td>
+                                {% set group_fail_rate = row.get('小组未过筛率(%)', '0.00%')|string|replace('%','')|float|default(0) %}
+                                <span class="{% if group_fail_rate > 40 %}text-danger{% elif group_fail_rate > 20 %}text-warning{% else %}text-secondary{% endif %}">
+                                    {{ "%.2f%%"|format(group_fail_rate) }}
+                                </span>
+                            </td>
+                            <td class="text-success">{{ row.get('优秀媒介数', 0)|int }}</td>
+                            <td class="text-primary">{{ row.get('良好媒介数', 0)|int }}</td>
+                            <td>
+                                {% set good_rate = row.get('优秀良好占比(%)', '0.00%')|string|replace('%','')|float|default(0) %}
+                                <span class="{% if good_rate > 50 %}text-success{% elif good_rate > 30 %}text-primary{% else %}text-secondary{% endif %}">
+                                    {{ "%.2f%%"|format(good_rate) }}
+                                </span>
+                            </td>
+                            <td>{{ row.get('提报量占比(%)', '0.00%') }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="11" class="text-center py-5">
+                                <div class="no-data">
+                                    <div class="no-data-icon">
+                                        <i class="fas fa-users"></i>
+                                    </div>
+                                    <h5 style="color: var(--text-light); margin: 15px 0 10px;">暂无小组汇总数据</h5>
+                                    <p style="color: var(--text-gray);">请上传完整数据进行小组分析</p>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 质量分布表格 -->
+    <div id="qualityDistributionTable" class="table-content" style="display: none;">
+        <div class="table-responsive">
+            <table class="table table-advanced table-hover">
+                <thead>
+                    <tr>
+                        <th>质量等级</th>
+                        <th>媒介数量</th>
+                        <th>占比</th>
+                        <th>平均过筛率</th>
+                        <th>平均提报量</th>
+                        <th>典型特征</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if quality_distribution and quality_distribution|length > 0 %}
+                        {% for row in quality_distribution %}
+                        <tr>
+                            <td>
+                                {% set rating = row.get('质量等级', '待改进') %}
+                                <span class="quality-badge
+                                    {% if rating == '优秀' %}badge-excellent
+                                    {% elif rating == '良好' %}badge-good
+                                    {% elif rating == '一般' %}badge-average
+                                    {% elif rating == '待改进' %}badge-need-improve
+                                    {% else %}badge-poor{% endif %}">
+                                    <i class="fas fa-{% if rating == '优秀' %}crown{% elif rating == '良好' %}star{% elif rating == '一般' %}chart-line{% elif rating == '待改进' %}exclamation-triangle{% else %}exclamation-circle{% endif %}"></i>
+                                    {{ rating }}
+                                </span>
+                            </td>
+                            <td class="fw-bold">{{ row.get('媒介数量', 0)|int }}</td>
+                            <td>
+                                {% set percent_value = row.get('占比(%)', '0.00%')|string|replace('%','')|float|default(0) %}
+                                <span class="fw-medium">{{ "%.2f%%"|format(percent_value) }}</span>
+                            </td>
+                            <td>
+                                {% set avg_rate = 0 %}
+                                {% if rating == '优秀' %}
+                                    {% set avg_rate = 85 %}
+                                {% elif rating == '良好' %}
+                                    {% set avg_rate = 75 %}
+                                {% elif rating == '一般' %}
+                                    {% set avg_rate = 65 %}
+                                {% elif rating == '待改进' %}
+                                    {% set avg_rate = 55 %}
+                                {% else %}
+                                    {% set avg_rate = 40 %}
+                                {% endif %}
+                                <span class="{% if avg_rate > 80 %}text-success{% elif avg_rate > 60 %}text-warning{% else %}text-danger{% endif %}">
+                                    {{ "%.1f%%"|format(avg_rate) }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if rating == '优秀' %}
+                                    25+
+                                {% elif rating == '良好' %}
+                                    18-24
+                                {% elif rating == '一般' %}
+                                    12-17
+                                {% elif rating == '待改进' %}
+                                    6-11
+                                {% else %}
+                                    0-5
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if rating == '优秀' %}
+                                    <span class="text-success">提报量大，过筛率高，质量优异</span>
+                                {% elif rating == '良好' %}
+                                    <span class="text-primary">表现良好，有提升空间</span>
+                                {% elif rating == '一般' %}
+                                    <span class="text-warning">质量一般，需改进</span>
+                                {% elif rating == '待改进' %}
+                                    <span class="text-orange">需重点关注和改进</span>
+                                {% else %}
+                                    <span class="text-danger">质量较差，需要培训</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center py-5">
+                                <div class="no-data">
+                                    <div class="no-data-icon">
+                                        <i class="fas fa-chart-pie"></i>
+                                    </div>
+                                    <h5 style="color: var(--text-light); margin: 15px 0 10px;">暂无质量分布数据</h5>
+                                    <p style="color: var(--text-gray);">请上传完整数据进行分布分析</p>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 模态框 - 媒介详情 -->
+<div class="modal fade" id="mediaDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content modal-advanced">
+            <div class="modal-header">
+                <h5 class="modal-title" id="mediaDetailTitle">媒介工作质量详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="mediaDetailContent">
+                    <!-- 详情内容将通过JavaScript动态加载 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" onclick="exportMediaDetail()">导出详情</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+<script>
+// 图表实例
+let qualityChart = null;
+let groupChart = null;
+let currentTable = 'qualityDetail';
+
+// 初始化图表
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🎯 开始初始化工作质量分析图表...');
+
+    // ✅ 获取后端传递的数据
+    const distData = {{ quality_distribution|tojson|safe if quality_distribution else '[]' }};
+    const groupData = {{ group_summary|tojson|safe if group_summary else '[]' }};
+
+    console.log('📊 质量分布数据:', distData);
+    console.log('📊 小组汇总数据:', groupData);
+    console.log('📊 质量分布数据长度:', distData.length);
+    console.log('📊 小组汇总数据长度:', groupData.length);
+
+    // 检查数据并初始化图表
+    if (distData && distData.length > 0) {
+        console.log('✅ 初始化质量分布图表...');
+        initQualityChart(distData, 'pie');
+    } else {
+        console.warn('⚠️ 质量分布数据为空或未定义');
+        showNoChartData('qualityChart', '暂无质量分布数据');
+    }
+
+    if (groupData && groupData.length > 0) {
+        console.log('✅ 初始化小组对比图表...');
+        initGroupChart(groupData, 'bar');
+    } else {
+        console.warn('⚠️ 小组汇总数据为空或未定义');
+        showNoChartData('groupChart', '暂无小组对比数据');
+    }
+
+    // 初始化搜索框
+    initSearch();
+});
+
+// 显示无数据提示
+function showNoChartData(canvasId, message) {
+    console.log(`📝 显示无数据提示: ${canvasId} - ${message}`);
+
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) {
+        console.error(`❌ 找不到canvas元素: ${canvasId}`);
+        return;
+    }
+
+    // 隐藏canvas，显示无数据提示
+    canvas.style.display = 'none';
+    const noDataDiv = document.getElementById(canvasId + 'NoData');
+    if (noDataDiv) {
+        noDataDiv.style.display = 'flex';
+    }
+
+    // 在画布上绘制提示文字
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.font = '16px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(message, canvas.width / 2, canvas.height / 2);
+}
+
+// 隐藏无数据提示
+function hideNoChartData(canvasId) {
+    const canvas = document.getElementById(canvasId);
+    if (canvas) {
+        canvas.style.display = 'block';
+    }
+    const noDataDiv = document.getElementById(canvasId + 'NoData');
+    if (noDataDiv) {
+        noDataDiv.style.display = 'none';
+    }
+}
+
+// 初始化质量分布图表
+function initQualityChart(data, chartType = 'pie') {
+    console.log(`📈 初始化质量分布图表: ${chartType}`, data);
+
+    const canvas = document.getElementById('qualityChart');
+    if (!canvas) {
+        console.error('❌ 找不到qualityChart元素');
+        return;
+    }
+
+    const ctx = canvas.getContext('2d');
+
+    // 销毁现有图表
+    if (qualityChart) {
+        qualityChart.destroy();
+    }
+
+    // 隐藏无数据提示
+    hideNoChartData('qualityChart');
+
+    // 准备图表数据
+    const labels = data.map(item => item.质量等级 || '未知');
+    const values = data.map(item => parseInt(item.媒介数量) || 0);
+
+    console.log('📊 图表标签:', labels);
+    console.log('📊 图表数值:', values);
+
+    // 检查数据是否有效
+    const total = values.reduce((sum, val) => sum + val, 0);
+    if (total === 0) {
+        console.warn('⚠️ 质量分布数据总和为0，显示无数据提示');
+        showNoChartData('qualityChart', '无有效质量分布数据');
+        return;
+    }
+
+    // 颜色配置
+    const colors = {
+        '优秀': '#10b981',
+        '良好': '#3b82f6',
+        '一般': '#f59e0b',
+        '待改进': '#f97316',
+        '及格': '#8b5cf6',
+        '较差': '#ef4444',
+        '未知': '#6b7280'
+    };
+
+    const backgroundColors = labels.map(label => colors[label] || '#6b7280');
+    const borderColors = backgroundColors.map(color => color + '80');
+
+    // 创建图表配置
+    const chartConfig = {
+        type: chartType,
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: backgroundColors,
+                borderColor: borderColors,
+                borderWidth: 1,
+                hoverOffset: 15
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: {
+                        color: 'rgba(255, 255, 255, 0.7)',
+                        padding: 20,
+                        usePointStyle: true,
+                        font: {
+                            size: 12
+                        }
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                    borderColor: 'rgba(16, 185, 129, 0.5)',
+                    borderWidth: 1,
+                    padding: 12,
+                    cornerRadius: 8,
+                    titleColor: 'rgba(255, 255, 255, 0.9)',
+                    bodyColor: 'rgba(255, 255, 255, 0.8)',
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.label || '';
+                            const value = context.raw || 0;
+                            const total = context.dataset.data.reduce((a, b) => (a || 0) + (b || 0), 0);
+                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                            return `${label}: ${value} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    try {
+        qualityChart = new Chart(ctx, chartConfig);
+        console.log('✅ 质量分布图表初始化成功');
+    } catch (error) {
+        console.error('❌ 质量分布图表初始化失败:', error);
+        showNoChartData('qualityChart', '图表初始化失败');
+    }
+}
+
+// 初始化小组对比图表
+function initGroupChart(data, chartType = 'bar') {
+    console.log(`📈 初始化小组对比图表: ${chartType}`, data);
+
+    const canvas = document.getElementById('groupChart');
+    if (!canvas) {
+        console.error('❌ 找不到groupChart元素');
+        return;
+    }
+
+    const ctx = canvas.getContext('2d');
+
+    // 销毁现有图表
+    if (groupChart) {
+        groupChart.destroy();
+    }
+
+    // 隐藏无数据提示
+    hideNoChartData('groupChart');
+
+    // 准备数据 - 确保正确处理小组过筛率
+    const labels = data.map(item => item.所属小组 || '未知小组');
+    const rates = data.map(item => {
+        // 尝试从不同字段获取过筛率
+        let rateStr = item['小组过筛率(%)'] || item['过筛率(%)'] || item['小组过筛率'] || '0%';
+        if (typeof rateStr === 'string') {
+            // 移除百分号并转换为数字
+            const rateNum = parseFloat(rateStr.replace('%', '')) || 0;
+            return rateNum;
+        } else if (typeof rateStr === 'number') {
+            return rateStr;
+        } else {
+            return 0;
+        }
+    });
+
+    console.log('📊 小组标签:', labels);
+    console.log('📊 过筛率数据:', rates);
+
+    // 检查数据是否有效
+    const validRates = rates.filter(rate => rate > 0);
+    if (validRates.length === 0) {
+        console.warn('⚠️ 无有效的小组过筛率数据，显示无数据提示');
+        showNoChartData('groupChart', '无有效的小组对比数据');
+        return;
+    }
+
+    // 创建颜色数组
+    const colors = [
+        '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+        '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#64748b'
+    ];
+
+    const backgroundColor = colors.slice(0, labels.length);
+    const borderColor = backgroundColor.map(color => color + '80');
+
+    const chartConfig = {
+        type: chartType,
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '小组过筛率',
+                data: rates,
+                backgroundColor: backgroundColor,
+                borderColor: borderColor,
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: chartType === 'radar' ? {
+                r: {
+                    beginAtZero: true,
+                    max: 100,
+                    ticks: {
+                        stepSize: 20
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    },
+                    angleLines: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    },
+                    pointLabels: {
+                        color: 'rgba(255, 255, 255, 0.7)'
+                    }
+                }
+            } : {
+                x: {
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    },
+                    ticks: {
+                        color: 'rgba(255, 255, 255, 0.7)'
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    },
+                    ticks: {
+                        color: 'rgba(255, 255, 255, 0.7)',
+                        callback: function(value) {
+                            return value + '%';
+                        }
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: chartType !== 'radar',
+                    labels: {
+                        color: 'rgba(255, 255, 255, 0.7)'
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                    borderColor: 'rgba(16, 185, 129, 0.5)',
+                    borderWidth: 1,
+                    padding: 12,
+                    cornerRadius: 8,
+                    callbacks: {
+                        label: function(context) {
+                            return `过筛率: ${context.raw}%`;
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    try {
+        groupChart = new Chart(ctx, chartConfig);
+        console.log('✅ 小组对比图表初始化成功');
+    } catch (error) {
+        console.error('❌ 小组对比图表初始化失败:', error);
+        showNoChartData('groupChart', '图表初始化失败');
+    }
+}
+
+// 更新图表类型 - 修复后的版本
+function updateChart(chartType) {
+    console.log(`🔄 更新图表类型: ${chartType}`);
+    const distData = {{ quality_distribution|tojson|safe if quality_distribution else '[]' }};
+    if (distData && distData.length > 0) {
+        initQualityChart(distData, chartType);
+    } else {
+        console.warn('⚠️ 质量分布数据为空，无法更新图表');
+        showNoChartData('qualityChart', '暂无质量分布数据');
+    }
+
+    // 【修复】更新按钮状态 - 使用正确的方法
+    const qualityChartElement = document.getElementById('qualityChart');
+    if (qualityChartElement) {
+        const qualityChartContainer = qualityChartElement.closest('.chart-container-wrapper');
+        if (qualityChartContainer) {
+            const filterButtons = qualityChartContainer.querySelectorAll('.filter-btn');
+            filterButtons.forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // 当前点击的按钮添加active类
+            if (event && event.target) {
+                event.target.classList.add('active');
+            }
+        }
+    }
+}
+
+function updateGroupChart(chartType) {
+    console.log(`🔄 更新小组图表类型: ${chartType}`);
+    const groupData = {{ group_summary|tojson|safe if group_summary else '[]' }};
+    if (groupData && groupData.length > 0) {
+        initGroupChart(groupData, chartType);
+    } else {
+        console.warn('⚠️ 小组汇总数据为空，无法更新图表');
+        showNoChartData('groupChart', '暂无小组对比数据');
+    }
+
+    // 【修复】更新按钮状态 - 使用正确的方法
+    const groupChartElement = document.getElementById('groupChart');
+    if (groupChartElement) {
+        const groupChartContainer = groupChartElement.closest('.chart-container-wrapper');
+        if (groupChartContainer) {
+            const filterButtons = groupChartContainer.querySelectorAll('.filter-btn');
+            filterButtons.forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // 当前点击的按钮添加active类
+            if (event && event.target) {
+                event.target.classList.add('active');
+            }
+        }
+    }
+}
+
+// 显示表格
+function showTable(tableId) {
+    // 更新标签页状态
+    document.querySelectorAll('.table-tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    event.target.classList.add('active');
+
+    // 隐藏所有表格
+    document.querySelectorAll('.table-content').forEach(content => {
+        content.style.display = 'none';
+    });
+
+    // 显示选中的表格
+    document.getElementById(tableId + 'Table').style.display = 'block';
+    currentTable = tableId;
+
+    // 更新搜索框占位符
+    updateSearchPlaceholder();
+}
+
+// 初始化搜索功能
+function initSearch() {
+    const searchContainer = document.getElementById('searchContainer');
+    if (!searchContainer) return;
+
+    // 搜索框已存在于模板中
+    updateSearchPlaceholder();
+}
+
+function updateSearchPlaceholder() {
+    const searchInput = document.getElementById('searchInput');
+    if (!searchInput) return;
+
+    const placeholders = {
+        'qualityDetail': '搜索媒介名称、小组或质量等级...',
+        'qualityTop': '搜索媒介名称或小组...',
+        'premiumDetail': '搜索媒介名称、小组或达人类型...',
+        'highReadDetail': '搜索媒介名称、小组或达人类型...',
+        'groupSummary': '搜索小组名称...',
+        'qualityDistribution': '搜索质量等级...'
+    };
+
+    searchInput.placeholder = placeholders[currentTable] || '搜索...';
+    searchInput.value = ''; // 清空搜索框
+}
+
+// 表格搜索功能
+function searchTable() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const currentTableElement = document.getElementById(currentTable + 'Table');
+
+    if (!currentTableElement) return;
+
+    const tableRows = currentTableElement.querySelectorAll('tbody tr');
+    let visibleCount = 0;
+
+    tableRows.forEach(row => {
+        const rowText = row.textContent.toLowerCase();
+        const isVisible = rowText.includes(searchTerm);
+        row.style.display = isVisible ? '' : 'none';
+
+        if (isVisible) visibleCount++;
+    });
+
+    // 显示搜索结果计数
+    showSearchResultCount(visibleCount, tableRows.length);
+}
+
+function showSearchResultCount(visible, total) {
+    // 移除现有的结果计数
+    const existingCount = document.getElementById('searchResultCount');
+    if (existingCount) {
+        existingCount.remove();
+    }
+
+    if (document.getElementById('searchInput').value.trim() === '') return;
+
+    const searchContainer = document.getElementById('searchContainer');
+    const countElement = document.createElement('div');
+    countElement.id = 'searchResultCount';
+    countElement.className = 'text-muted small ms-2';
+    countElement.textContent = `找到 ${visible} / ${total} 条记录`;
+
+    searchContainer.appendChild(countElement);
+}
+
+// 重置筛选
+function resetFilters() {
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.value = '';
+    }
+
+    // 移除搜索结果计数
+    const existingCount = document.getElementById('searchResultCount');
+    if (existingCount) {
+        existingCount.remove();
+    }
+
+    // 显示所有行
+    const currentTableElement = document.getElementById(currentTable + 'Table');
+    if (currentTableElement) {
+        const tableRows = currentTableElement.querySelectorAll('tbody tr');
+        tableRows.forEach(row => {
+            row.style.display = '';
+        });
+    }
+}
+
+// 导出图表
+function exportChart(chartId) {
+    const canvas = document.getElementById(chartId);
+    if (!canvas) {
+        alert('图表未找到');
+        return;
+    }
+
+    const link = document.createElement('a');
+    const timestamp = new Date().toISOString().split('T')[0];
+    const chartName = chartId === 'qualityChart' ? '质量分布' : '小组对比';
+    link.download = `工作质量分析_${chartName}_${timestamp}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+}
+
+// 导出当前表格
+function exportCurrentTable() {
+    const tableElement = document.getElementById(currentTable + 'Table').querySelector('table');
+    if (!tableElement) {
+        alert('表格未找到');
+        return;
+    }
+
+    const tableName = {
+        'qualityDetail': '质量明细',
+        'qualityTop': '质量排名TOP20',
+        'premiumDetail': '优质达人质量',
+        'highReadDetail': '高阅读达人质量',
+        'groupSummary': '小组汇总',
+        'qualityDistribution': '质量分布'
+    }[currentTable] || '表格数据';
+
+    const timestamp = new Date().toISOString().split('T')[0];
+    const filename = `工作质量分析_${tableName}_${timestamp}.csv`;
+
+    // 创建CSV内容
+    let csv = [];
+    const rows = tableElement.querySelectorAll('tr');
+
+    rows.forEach(row => {
+        const rowData = [];
+        const cells = row.querySelectorAll('th, td');
+
+        cells.forEach(cell => {
+            // 移除图标和按钮文本
+            let text = cell.innerText;
+            text = text.replace(/[\n\r]+/g, ' ').trim();
+
+            // 移除HTML标签内容
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = cell.innerHTML;
+            const cleanText = tempDiv.textContent || tempDiv.innerText || '';
+
+            rowData.push(`"${cleanText.replace(/"/g, '""')}"`);
+        });
+
+        csv.push(rowData.join(','));
+    });
+
+    const csvContent = csv.join('\n');
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+
+    if (navigator.msSaveBlob) {
+        navigator.msSaveBlob(blob, filename);
+    } else {
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+}
+
+// 查看媒介详情
+function showMediaDetail(mediaName) {
+    if (!mediaName || mediaName === '未知') {
+        alert('无法查看该媒介的详情');
+        return;
+    }
+
+    // 在实际应用中，这里应该通过AJAX请求获取媒介详情数据
+    // 这里先显示一个示例模态框
+
+    const modalTitle = document.getElementById('mediaDetailTitle');
+    const modalContent = document.getElementById('mediaDetailContent');
+
+    modalTitle.textContent = `媒介工作质量详情 - ${mediaName}`;
+
+    // 模拟数据 - 实际应用中应从后端获取
+    const mockData = {
+        name: mediaName,
+        screeningRate: '85.5%',
+        totalReporting: 24,
+        passedCount: 21,
+        failedCount: 3,
+        qualityRating: '优秀',
+        group: '家居媒介组',
+        mainStatus: '过筛通过:18(75.0%); 已发布:3(12.5%); 其他:3(12.5%)',
+        evaluation: '过筛率高且提报量大，工作质量优异。过筛率:85.5%，提报量:24人'
+    };
+
+    modalContent.innerHTML = `
+        <div class="row">
+            <div class="col-md-6">
+                <div class="detail-item mb-3">
+                    <label class="text-muted small">媒介名称</label>
+                    <div class="fw-bold">${mockData.name}</div>
+                </div>
+                <div class="detail-item mb-3">
+                    <label class="text-muted small">所属小组</label>
+                    <div>
+                        <span class="group-badge badge-blue">${mockData.group}</span>
+                    </div>
+                </div>
+                <div class="detail-item mb-3">
+                    <label class="text-muted small">质量评估</label>
+                    <div>
+                        <span class="quality-badge badge-excellent">
+                            <i class="fas fa-crown"></i> ${mockData.qualityRating}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="detail-item mb-3">
+                    <label class="text-muted small">总提报达人数</label>
+                    <div class="fw-bold">${mockData.totalReporting} 人</div>
+                </div>
+                <div class="detail-item mb-3">
+                    <label class="text-muted small">过筛率</label>
+                    <div class="text-success fw-bold">${mockData.screeningRate}</div>
+                </div>
+                <div class="detail-item mb-3">
+                    <label class="text-muted small">过筛情况</label>
+                    <div>
+                        <span class="text-success">过筛: ${mockData.passedCount}人</span> |
+                        <span class="text-danger">未过筛: ${mockData.failedCount}人</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="detail-item mb-3">
+                    <label class="text-muted small">主要状态分布</label>
+                    <div class="p-3 bg-dark rounded">${mockData.mainStatus}</div>
+                </div>
+                <div class="detail-item">
+                    <label class="text-muted small">评估说明</label>
+                    <div class="p-3 bg-dark rounded">${mockData.evaluation}</div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // 显示模态框
+    const modal = new bootstrap.Modal(document.getElementById('mediaDetailModal'));
+    modal.show();
+}
+
+// 导出媒介详情
+function exportMediaDetail() {
+    const mediaName = document.getElementById('mediaDetailTitle').textContent.replace('媒介工作质量详情 - ', '');
+    const content = document.getElementById('mediaDetailContent').innerText;
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `媒介详情_${mediaName}_${new Date().toISOString().split('T')[0]}.txt`;
+    link.click();
+}
+
+// 切换视图
+function toggleQualityView() {
+    const chartSection = document.querySelectorAll('.chart-container-wrapper');
+    const tableSection = document.querySelectorAll('.table-content');
+
+    if (chartSection.length > 0 && tableSection.length > 0) {
+        const isChartVisible = chartSection[0].style.display !== 'none';
+
+        chartSection.forEach(chart => {
+            chart.style.display = isChartVisible ? 'none' : 'block';
+        });
+
+        tableSection.forEach(table => {
+            table.style.display = isChartVisible ? 'block' : 'none';
+        });
+
+        // 更新按钮文本
+        const btn = event.target.closest('button');
+        if (btn) {
+            const icon = btn.querySelector('i');
+            if (isChartVisible) {
+                icon.className = 'fas fa-chart-pie me-1';
+                btn.innerHTML = btn.innerHTML.replace('切换视图', '查看图表');
+            } else {
+                icon.className = 'fas fa-table me-1';
+                btn.innerHTML = btn.innerHTML.replace('查看图表', '查看表格');
+            }
+        }
+    }
+}
+
+// 刷新数据
+function refreshQualityData() {
+    const btn = event.target.closest('button');
+    if (btn) {
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> 刷新中...';
+        btn.disabled = true;
+
+        // 模拟刷新延迟
+        setTimeout(() => {
+            // 在实际应用中，这里应该通过AJAX重新加载数据
+            // location.reload(); // 简单刷新页面
+
+            // 恢复按钮状态
+            btn.innerHTML = originalHTML;
+            btn.disabled = false;
+
+            // 显示成功提示
+            showToast('数据刷新成功', 'success');
+        }, 1500);
+    }
+}
+
+// 显示提示消息
+function showToast(message, type = 'info') {
+    const toastContainer = document.getElementById('toastContainer');
+    if (!toastContainer) {
+        // 创建toast容器
+        const container = document.createElement('div');
+        container.id = 'toastContainer';
+        container.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999;';
+        document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-white bg-${type === 'success' ? 'success' : type === 'error' ? 'danger' : 'info'} border-0`;
+    toast.setAttribute('role', 'alert');
+    toast.setAttribute('aria-live', 'assertive');
+    toast.setAttribute('aria-atomic', 'true');
+
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">
+                <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'} me-2"></i>
+                ${message}
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+
+    document.getElementById('toastContainer').appendChild(toast);
+
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+
+    // 自动移除
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
+
+// 添加一些工具函数
+function downloadCSV(data, filename) {
+    const blob = new Blob(['\ufeff' + data], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (navigator.msSaveBlob) {
+        navigator.msSaveBlob(blob, filename);
+    } else {
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+}
+
+// 添加键盘快捷键支持
+document.addEventListener('keydown', function(e) {
+    // Ctrl+F: 聚焦搜索框
+    if (e.ctrlKey && e.key === 'f') {
+        e.preventDefault();
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            searchInput.focus();
+            searchInput.select();
+        }
+    }
+
+    // Ctrl+E: 导出当前表格
+    if (e.ctrlKey && e.key === 'e') {
+        e.preventDefault();
+        exportCurrentTable();
+    }
+
+    // Ctrl+R: 刷新数据
+    if (e.ctrlKey && e.key === 'r') {
+        e.preventDefault();
+        const refreshBtn = document.querySelector('[onclick="refreshQualityData()"]');
+        if (refreshBtn) {
+            refreshBtn.click();
+        }
+    }
+});
+
+// 添加打印支持
+function printCurrentTable() {
+    const tableElement = document.getElementById(currentTable + 'Table');
+    if (!tableElement) return;
+
+    const printWindow = window.open('', '_blank');
+    const tableName = {
+        'qualityDetail': '工作质量明细表',
+        'qualityTop': '工作质量排名TOP20',
+        'premiumDetail': '优质达人质量分析表',
+        'highReadDetail': '高阅读达人质量分析表',
+        'groupSummary': '小组工作质量汇总表',
+        'qualityDistribution': '工作质量分布表'
+    }[currentTable] || '工作质量分析表';
+
+    printWindow.document.write(`
+        <html>
+        <head>
+            <title>${tableName}</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 20px; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                th { background-color: #f2f2f2; font-weight: bold; }
+                .quality-badge { padding: 2px 8px; border-radius: 12px; font-size: 0.9em; }
+                .badge-excellent { background-color: #d1fae5; color: #065f46; }
+                .badge-good { background-color: #dbeafe; color: #1e40af; }
+                .badge-average { background-color: #fef3c7; color: #92400e; }
+                .badge-need-improve { background-color: #ffedd5; color: #9a3412; }
+                .badge-poor { background-color: #fee2e2; color: #991b1b; }
+                .print-header { text-align: center; margin-bottom: 30px; }
+                .print-header h1 { margin: 0; color: #333; }
+                .print-header .subtitle { color: #666; margin-top: 5px; }
+                .print-footer { margin-top: 30px; text-align: center; color: #666; font-size: 0.9em; }
+            </style>
+        </head>
+        <body>
+            <div class="print-header">
+                <h1>${tableName}</h1>
+                <div class="subtitle">生成时间: ${new Date().toLocaleString()}</div>
+            </div>
+            ${tableElement.innerHTML}
+            <div class="print-footer">
+                第 1 页 / 共 1 页 | AI媒介自动化审计分析系统
+            </div>
+        </body>
+        </html>
+    `);
+
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+    }, 500);
+}
+
+// 添加打印按钮到页面
+document.addEventListener('DOMContentLoaded', function() {
+    const searchContainer = document.getElementById('searchContainer');
+    if (searchContainer) {
+        const printBtn = document.createElement('button');
+        printBtn.className = 'btn btn-sm btn-outline-info export-mini-btn';
+        printBtn.innerHTML = '<i class="fas fa-print me-1"></i>打印';
+        printBtn.onclick = printCurrentTable;
+        searchContainer.appendChild(printBtn);
+    }
+});
+</script>
+{% endblock %}
