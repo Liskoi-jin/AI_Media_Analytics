@@ -6,12 +6,57 @@
 
 # app_auto.py 最顶部
 import logging
-# 【终极修复】根源解决日志重复打印 - 清空所有根日志处理器，优先级最高
-root_logger = logging.getLogger()
-root_logger.handlers.clear()
-# 同时清空当前模块日志处理器
-logging.getLogger(__name__).handlers.clear()
+import os
 
+
+# ========== 【终极修复】一次性的日志配置 ==========
+def setup_logging():
+    """
+    统一日志配置，确保只配置一次，避免重复打印
+    """
+    # 1. 获取根日志器和当前模块日志器
+    root_logger = logging.getLogger()
+    app_logger = logging.getLogger(__name__)
+
+    # 2. 清除所有现有处理器（避免重复）
+    if root_logger.handlers:
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
+
+    if app_logger.handlers:
+        for handler in app_logger.handlers[:]:
+            app_logger.removeHandler(handler)
+
+    # 3. 设置日志级别
+    root_logger.setLevel(logging.INFO)
+    app_logger.setLevel(logging.INFO)
+
+    # 4. 创建格式化器
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+
+    # 5. 只创建一个控制台处理器
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+
+    # 6. 防止重复添加处理器
+    if not root_logger.handlers:
+        root_logger.addHandler(console_handler)
+
+    # 7. 防止向上传播到根日志器（避免重复打印）
+    app_logger.propagate = False
+
+    # 8. 确保 app_logger 也有处理器（如果不传播到根日志器）
+    if not app_logger.handlers:
+        app_logger.addHandler(console_handler)
+
+    return app_logger
+
+
+# 立即配置日志
+logger = setup_logging()
+logger.info("✅ 日志系统配置完成（单次配置，无重复）")
 import os
 import re
 import json
@@ -209,10 +254,10 @@ app = Flask(__name__)
 # ========== 新增：数据库配置 ==========
 # 直接设置数据库配置
 DB_CONFIG = {
-    'host': 'localhost',
+    'host': 'rm-cn-2104msjne000170o.rwlb.rds.aliyuncs.com',
     'port': 3306,
     'user': 'root',  # 改为你的数据库用户名
-    'password': 'root',  # 改为你的数据库密码
+    'password': 'Lj041213',  # 改为你的数据库密码
     'database': 'ai_media_db',  # 改为你的数据库名
     'charset': 'utf8mb4'
 }
