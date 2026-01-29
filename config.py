@@ -1,7 +1,9 @@
 import os
 from datetime import timedelta
 from dotenv import load_dotenv
-import os
+
+# 加载环境变量（移到顶部，确保所有配置都能读取）
+load_dotenv()
 
 
 class Config:
@@ -22,12 +24,9 @@ class Config:
     LOG_LEVEL = 'INFO'
     LOG_FILE = os.path.join(BASE_DIR, 'logs/app.log')
 
-# 加载环境变量
-load_dotenv()
 
-
-class Config:
-    """基础配置类"""
+class BaseConfig(Config):
+    """基础配置类（整合原有Config，避免重复）"""
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
     PERMANENT_SESSION_LIFETIME = timedelta(seconds=int(os.environ.get('PERMANENT_SESSION_LIFETIME', 86400)))
 
@@ -64,13 +63,13 @@ class Config:
     SCHEDULE_WEEKLY_TIME = os.environ.get('SCHEDULE_WEEKLY_TIME', '09:00')
 
 
-class DevelopmentConfig(Config):
+class DevelopmentConfig(BaseConfig):
     """开发环境配置"""
     DEBUG = True
     FLASK_ENV = 'development'
 
 
-class ProductionConfig(Config):
+class ProductionConfig(BaseConfig):
     """生产环境配置"""
     DEBUG = False
     FLASK_ENV = 'production'
@@ -84,16 +83,17 @@ config = {
 }
 
 
-# 确保目录存在
+# 确保目录存在（修复原有重复定义问题，保留一份即可）
 def create_directories():
     """创建必要的目录"""
+    # 整合所有需要创建的目录
     dirs = [
-        Config.UPLOAD_FOLDER,
-        Config.OUTPUT_DIR,
-        Config.EXCEL_OUTPUT_DIR,
-        Config.HTML_OUTPUT_DIR,
-        Config.TEMP_DIR,
-        os.path.dirname(Config.LOG_FILE)
+        BaseConfig.UPLOAD_FOLDER,
+        BaseConfig.OUTPUT_DIR,
+        BaseConfig.EXCEL_OUTPUT_DIR,
+        BaseConfig.HTML_OUTPUT_DIR,
+        BaseConfig.TEMP_DIR,
+        os.path.dirname(BaseConfig.LOG_FILE)
     ]
     for dir_path in dirs:
         os.makedirs(dir_path, exist_ok=True)
@@ -102,20 +102,17 @@ def create_directories():
 # 初始化时创建目录
 create_directories()
 
-# ========== 新增：用户权限模块数据库配置（独立于原有系统） ==========
-
-# MySQL数据库连接配置（对应Navicat创建的连接和数据库）
+# ========== 核心修改：替换为阿里云RDS数据库配置 ==========
+# 替换下面5个参数为你的阿里云RDS信息，其他不动！
 DB_CONFIG = {
-    'host': 'localhost',
-    'port': 3306,
-    'user': 'root',  # 你的MySQL用户名
-    'password': 'root',  # 替换为你的MySQL密码
-    'database': 'ai_media_db',  # 必须与创建的数据库名一致
-    'charset': 'utf8mb4'
+    'host': 'rm-cn-2104msjne000170o.rwlb.rds.aliyuncs.com',  # 例：rm-cn-2104msjne00017.mysql.rds.aliyuncs.com
+    'port': 3306,                    # 固定3306，不用改
+    'user': 'root',                  # 你创建的阿里云高权限账号
+    'password': 'Lj041213',          # 你设置的阿里云数据库密码
+    'database': 'ai_media_db',       # 刚创建的阿里云数据库名
+    'charset': 'utf8mb4'             # 固定utf8mb4，不用改
 }
-# 原有配置保持不变...
-def create_directories():
-    """创建必要的目录"""
+
 # 会话配置（用于登录状态保持）
 SECRET_KEY = os.getenv('AUTH_SECRET_KEY', 'ai_media_auth_2025_secure')  # 加密会话用
 PERMANENT_SESSION_LIFETIME = 3600 * 24  # 会话有效期：24小时
